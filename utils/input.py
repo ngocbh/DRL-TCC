@@ -62,8 +62,8 @@ class NetworkInput():
             num_charging_points = data['num_of_charging_points']
             charging_points = [Point(**e) for e in data['charging_points']]
         else:
-            num_charging_points = 0
-            charging_points = None
+            num_charging_points = data['num_of_sensors']
+            charging_points = [Point(**e) for e in data['sensors']]
 
         return cls(W, H, num_sensors, num_relays, num_targets,
                    num_charging_points, sink, depot, sensors, relays,
