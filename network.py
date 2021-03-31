@@ -2,6 +2,7 @@ from queue import PriorityQueue
 
 import numpy as np
 import enum
+import math
 
 from utils import WrsnParameters as wp
 from utils import NetworkInput, Point
@@ -109,6 +110,14 @@ class WRSNNetwork():
                 if node is not other and dist(node.position, other.position) <= wp.r_c:
                     node.adj.append(other)
 
+    def __check_health(self):
+        for sn in self.sensors:
+            if not sn.is_active and sn.cur_energy >= wp.p_auto_start_threshold * sn.battery_cap:
+                sn.activate()
+            if sn.is_active and (sn.cur_energy <= wp.p_sleep_threshold * sn.battery_cap or
+                                 (sn.ecr and sn.cur_energy / sn.ecr < 1.0)):
+                sn.deactivate()
+
     def __estimate_topology(self):
         """__dijkstra.
         """
@@ -150,15 +159,18 @@ class WRSNNetwork():
 
         for i in range(1, self.num_sensors+1):
             u = i
-            while u > 0:
+            while u > 0 and trace[u] != -1:
                 u = trace[u]
                 eta[u] += 1
 
         ecr = np.zeros(self.num_sensors + 1)
         for u in range(1, self.num_sensors + 1):
-            pu = trace[u]
-            d = dist(self.nodes[u].position, self.nodes[pu].position)
-            ecr[u] = energy_consumption(eta[u], 1, d)
+            if trace[u] == -1:
+                ecr[u] = 0
+            else:
+                pu = trace[u]
+                d = dist(self.nodes[u].position, self.nodes[pu].position)
+                ecr[u] = energy_consumption(eta[u], 1, d)
             self.nodes[u].ecr = ecr[u]
 
         return ecr
@@ -181,12 +193,18 @@ class WRSNNetwork():
         self.run_estimation()
 
     def run_estimation(self):
+        """run_estimation.
+            Simulate network communication, this function omits real communication,
+            Only simulate sequential results in base station
+        """
+        self.__check_health()
         self.routing_path = self.__estimate_topology()
         self.estimated_ecr = self.__estimate_ecr(self.routing_path)
         self.estimated_lifetime = np.zeros(self.num_sensors + 1)
         for sn in self.sensors:
-            self.estimated_lifetime[sn.id] = sn.cur_energy / \
-                self.estimated_ecr[sn.id]
+            if sn.is_active and self.estimated_ecr[sn.id] > 1e-8:
+                self.estimated_lifetime[sn.id] = sn.cur_energy / \
+                    self.estimated_ecr[sn.id]
 
     def t_step(self, t: int, charging_sensors=None):
         """ simulate network running for t seconds.
@@ -199,13 +217,20 @@ class WRSNNetwork():
             dictionary of charing sensors where key is sensor's id and value is energy charning rate 
         """
         if t <= 0:
-            return
+            return 0
 
         if charging_sensors is None:
             charging_sensors = dict()
 
-        while t > 0:
-            self.run_estimation()
+        # we assume that packets are generated once each second,
+        # and transmission time is trivial
+        frac, whole = math.modf(self.network_lifetime)
+        # self.network_lifetime = whole
+        t += frac
+        simulated_time = 0
+
+        while t >= 1.0:
+            # self.run_estimation()
             active = self.active_status
             # do not consider lifetime of base station
             active[0] = False
@@ -226,14 +251,27 @@ class WRSNNetwork():
                     sn.cur_energy -= self.estimated_ecr[sn.id] * time_jump
 
                 sn.cur_energy = max(min(sn.cur_energy, sn.battery_cap), 0.0)
-                if sn.cur_energy / self.estimated_ecr[sn.id] < 1.0:
-                    sn.deactivate()
-                    sn.cur_energy = 0.0
-                else:
-                    sn.activate()
 
-            self.network_lifetime += time_jump
+            # we should run estimation after network changing
+            self.run_estimation()
+
+            # network is not coverage anymore,
+            # further running is not counted in network_lifetime
+            if self.is_coverage:
+                simulated_time += time_jump
+            else:
+                break
             t -= time_jump
+
+        if self.is_coverage:
+            simulated_time += t - frac
+            for snid, mu in charging_sensors.items():
+                sn = self.nodes[snid]
+                sn.cur_energy += mu * (t - frac)
+                sn.cur_energy = max(min(sn.cur_energy, sn.battery_cap), 0.0)
+
+        self.network_lifetime += simulated_time
+        return simulated_time
 
     def get_state(self):
         state = np.zeros((self.num_sensors, 5))
