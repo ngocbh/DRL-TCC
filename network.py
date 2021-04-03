@@ -276,7 +276,7 @@ class WRSNNetwork():
     def get_state(self):
         state = np.zeros((self.num_sensors, 5))
         for i, sn in enumerate(self.sensors):
-            state[i] = sn.get_state()
+            state[i, :] = sn.get_state()
         return state
 
 

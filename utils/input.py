@@ -23,6 +23,14 @@ class NetworkInput():
         self.charging_points = charging_points
         self.r_c = r_c
 
+    def __hash__(self):
+        return hash((self.W, self.H, self.num_relays, self.num_sensors, self.r_c,
+                     tuple(self.relays), tuple(self.sensors), tuple(self.targets), 
+                     tuple(self.charging_points)))
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
     @classmethod
     def from_file(cls, filepath):
         data = json.load(open(filepath, mode='r'))
@@ -97,10 +105,3 @@ class NetworkInput():
             fstr = json.dumps(d, indent=4)
             f.write(fstr)
 
-    def __hash__(self):
-        return hash((self.W, self.H, self.num_relays, self.num_sensors, self.r_c,
-                     tuple(self.relays), tuple(self.sensors), tuple(self.targets), 
-                     tuple(self.charging_points)))
-
-    def __eq__(self, other):
-        return hash(self) == hash(other)

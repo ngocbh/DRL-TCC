@@ -7,7 +7,7 @@ from gym.utils import seeding
 
 from utils import WrsnParameters as wp
 from utils import NetworkInput, Point
-from utils import energy_consumption, dist
+from utils import energy_consumption, dist, normalize
 from network import WRSNNetwork
 
 
@@ -120,7 +120,7 @@ class WRSNEnv(gym.Env):
             (x_coor, y_coor, current_energy, 
             battery_capacity, moving_energy_consumption_rate, 
             charging_energy_rate, velocity)
-        Box(num_sensors * 5): Box[i][:] for observation of sensor ith
+        Box(num_sensors, 5): Box[i, :] for observation of sensor ith
                               the first 3 values are static and
                               the rest of them is dynamic
             (x_coor, y_coor, battery_capacity, 
@@ -150,7 +150,7 @@ class WRSNEnv(gym.Env):
         'video.frames_per_second': 10
     }
 
-    def __init__(self, inp: NetworkInput, seed=None):
+    def __init__(self, inp: NetworkInput, seed=None, normalize=False):
         self.inp = inp
         self.depot = inp.depot
         self.charging_points = inp.charging_points
@@ -158,18 +158,19 @@ class WRSNEnv(gym.Env):
         self.mc = MobileCharger(
             inp.depot, wp.E_mc, wp.v_mc, wp.ecr_move, wp.ecr_charge)
         self.net = WRSNNetwork(inp)
+        self.normalize = normalize
 
         max_ecr = energy_consumption(inp.num_sensors, 1, wp.r_c)
         high_s_row = np.array([inp.W,
                                inp.H,
-                               wp.E_s,
-                               wp.E_s,
+                               wp.E_mc,
+                               wp.E_mc,
                                max_ecr],
                               dtype=np.float32)
-        high_s = np.tile(high_s_row, (inp.num_sensors, 1))
-        low_s = np.zeros((inp.num_sensors, 5), dtype=np.float32)
+        self.high_s = np.tile(high_s_row, (inp.num_sensors, 1))
+        self.low_s = np.zeros((inp.num_sensors, 5), dtype=np.float32)
 
-        high_mc = np.array([inp.W,
+        self.high_mc = np.array([inp.W,
                             inp.H,
                             wp.E_mc,
                             wp.E_mc,
@@ -177,11 +178,11 @@ class WRSNEnv(gym.Env):
                             wp.ecr_charge,
                             wp.v_mc],
                            dtype=np.float32)
-        low_mc = np.zeros(7, dtype=np.float32)
+        self.low_mc = np.zeros(7, dtype=np.float32)
 
         self.action_space = spaces.Discrete(self.net.num_sensors + 1)
-        self.observation_space = spaces.Tuple((spaces.Box(low_mc, high_mc, dtype=np.float32),
-                                               spaces.Box(low_s, high_s, shape=(inp.num_sensors, 5),
+        self.observation_space = spaces.Tuple((spaces.Box(self.low_mc, self.high_mc, dtype=np.float32),
+                                               spaces.Box(self.low_s, self.high_s, shape=(inp.num_sensors, 5),
                                                           dtype=np.float32)))
 
         self.seed(seed)
@@ -290,6 +291,11 @@ class WRSNEnv(gym.Env):
         self.state = (self.mc.get_state(), self.net.get_state())
         self.steps_beyond_done = None
         return self.state
+
+    def get_normalized_state(self):
+        mc_state, sensors_state = self.state
+        return (normalize(mc_state, self.low_mc, self.high_mc),
+                normalize(sensors_state, self.low_s, self.high_s))
 
     def render(self, mode):
         raise NotImplementedError
