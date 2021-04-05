@@ -1,30 +1,39 @@
-from collections import namedtuple
+from collections import namedtuple, deque, defaultdict
 
 import json
-
-Point = namedtuple('Point', ['x', 'y', 'z'], defaults=[0, 0, 0])
+from utils.utils import dist
+from utils.utils import Point
 
 class NetworkInput():
 
     def __init__(self, W=500, H=500, num_sensors=0, num_relays=0, num_targets=0,
                  num_charging_points=0, sink=None, depot=None, sensors=None, 
-                 relays=None, targets=None, charging_points=None, r_c=25):
+                 relays=None, targets=None, charging_points=None, r_c=25, r_s=25):
         self.W = W
         self.H = H
         self.num_sensors = num_sensors
         self.num_relays = num_relays
         self.num_targets = num_targets
-        self.num_charging_points = num_charging_points
+
+
         self.sink = sink
         self.depot = depot
         self.sensors = sensors
         self.relays = relays
         self.targets = targets
-        self.charging_points = charging_points
+
+        if charging_points is None:
+            self.num_charging_points = num_sensors
+            self.charging_points = sensors
+        else:
+            self.num_charging_points = num_charging_points
+            self.charging_points = charging_points
+
         self.r_c = r_c
+        self.r_s = r_s
 
     def __hash__(self):
-        return hash((self.W, self.H, self.num_relays, self.num_sensors, self.r_c,
+        return hash((self.W, self.H, self.num_relays, self.num_sensors, self.r_c, self.r_s,
                      tuple(self.relays), tuple(self.sensors), tuple(self.targets), 
                      tuple(self.charging_points)))
 
@@ -66,7 +75,8 @@ class NetworkInput():
             num_targets = 0
             targets = None
 
-        if 'num_of_charging_points' in data and 'charging_points' in data:
+        if 'num_of_charging_points' in data and 'charging_points' in data \
+                and data['charging_points']:
             num_charging_points = data['num_of_charging_points']
             charging_points = [Point(**e) for e in data['charging_points']]
         else:
@@ -96,7 +106,8 @@ class NetworkInput():
             'charging_points': list(map(lambda x: x._asdict(), self.charging_points)),
             'sink': self.sink._asdict(),
             'depot': self.depot._asdict(),
-            'communication_range': self.r_c
+            'communication_range': self.r_c,
+            'sensing_range': self.r_s
         }
 
     def to_file(self, file_path):
@@ -104,4 +115,26 @@ class NetworkInput():
         with open(file_path, "wt") as f:
             fstr = json.dumps(d, indent=4)
             f.write(fstr)
+
+    def is_connected(self):
+        visited = defaultdict(lambda : False)
+        queue = deque()
+        queue.append(self.sink)
+        
+        while queue:
+            u = queue.popleft()
+            visited[u] = True
+
+            for sn in self.sensors:
+                if not visited[sn] and dist(u, sn) <=  self.r_c:
+                    queue.append(sn)
+
+        if any(not visited[sn] for sn in self.sensors):
+            return False
+
+        for tg in self.targets:
+            if all(dist(tg, sn) > self.r_c for sn in self.sensors):
+                return False
+
+        return True
 

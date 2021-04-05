@@ -57,9 +57,9 @@ class Config():
 class WrsnParameters(Config):
     __dictpath__ = 'wp'
     # width
-    W = 2000
-    H = 2000
-    sink = (1000, 1000, 0)
+    W = 500
+    H = 500
+    sink = (W/2, H/2, 0)
     depot = (0, 0, 0)
     # number of mobile charger
     num_mc = 1 
@@ -83,7 +83,7 @@ class WrsnParameters(Config):
     # capacity of mc (J)
     E_mc = 1 * 1e6
     # Charging rate (W)
-    mu = 2
+    mu = 20
 
     # transmission parameter
     lamb = 36.0 
@@ -97,7 +97,7 @@ class WrsnParameters(Config):
     e_da = 5 * 1e-12
 
     # Num of bits
-    k_bit = 4000000
+    k_bit = 8000000
 
     # hop constraint
     hop = 12

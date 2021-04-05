@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from queue import PriorityQueue
 
 import numpy as np
@@ -7,7 +9,6 @@ import math
 from utils import WrsnParameters as wp
 from utils import NetworkInput, Point
 from utils import dist, transmission_energy, energy_consumption
-
 
 class NodeType(enum.Enum):
     BS = 0
@@ -33,6 +34,19 @@ class Node():
 
     def __str__(self):
         return str((self.id, self.position))
+
+    def is_connected_to(self, other: Node):
+        type_set = set((self.type, other.type)) 
+
+        if NodeType.TG in type_set and NodeType.SN not in type_set:
+            return False
+
+        communication_range = wp.r_s if NodeType.TG in type_set else wp.r_c
+
+        if dist(self.position, other.position) <= communication_range:
+            return True
+        else:
+            return False
 
 
 class Sensor(Node):
@@ -98,6 +112,7 @@ class WRSNNetwork():
         self.is_connectivity = True
         self.estimated_ecr = None
         self.estimated_lifetime = None
+        self.edges = set()
 
         self.__build_adjacency()
         self.run_estimation()
@@ -107,8 +122,10 @@ class WRSNNetwork():
         """
         for node in self.nodes:
             for other in self.nodes:
-                if node is not other and dist(node.position, other.position) <= wp.r_c:
+                if node is not other and node.is_connected_to(other):   
                     node.adj.append(other)
+                    if (other.id, node.id) not in self.edges:
+                        self.edges.add((node.id, other.id))
 
     def __check_health(self):
         for sn in self.sensors:

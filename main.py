@@ -6,7 +6,7 @@ from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput
 from utils import DrlParameters as dp
-from utils import logger
+from utils import logger, gen_cgrg
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -15,8 +15,10 @@ def train():
 
 
 def test():
-    filepath = 'data/test/NIn1.json'
-    inp = NetworkInput.from_file(filepath)
+    # filepath = 'data/test/NIn1.json'
+    # inp = NetworkInput.from_file(filepath)
+
+    inp = gen_cgrg(20, 10, np.random.RandomState(1))
     env = WRSNEnv(inp, normalize=True)
 
     seed = random.randint(1, 1000)
@@ -34,6 +36,10 @@ def test():
                     dp.HIDDEN_SIZE).to(device)
 
     env.reset()
+    env.render()
+    input()
+    return
+
     mc_state, sensors_state = env.get_normalized_state()
 
     mc_state = torch.Tensor(mc_state, device=device)
@@ -49,4 +55,5 @@ def test():
 
 if __name__ == '__main__':
     torch.set_printoptions(sci_mode=False)
+    np.set_printoptions(suppress=True)
     test()

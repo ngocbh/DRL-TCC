@@ -1,6 +1,7 @@
 import gym
 import math
 import numpy as np
+import pyglet
 from gym import spaces, logger
 from gym.utils import seeding
 
@@ -152,6 +153,8 @@ class WRSNEnv(gym.Env):
 
     def __init__(self, inp: NetworkInput, seed=None, normalize=False):
         self.inp = inp
+        self.world_width = inp.W
+        self.world_height = inp.H
         self.depot = inp.depot
         self.charging_points = inp.charging_points
         self.action_dest = [inp.depot, *inp.charging_points]
@@ -297,8 +300,121 @@ class WRSNEnv(gym.Env):
         return (normalize(mc_state, self.low_mc, self.high_mc),
                 normalize(sensors_state, self.low_s, self.high_s))
 
-    def render(self, mode):
-        raise NotImplementedError
+    def render(self, mode='human'):
+        screen_width = 600
+        screen_height = 600
+
+        scale = screen_width / self.world_width
+
+        sn_width, sn_height, sn_color  = 20, 10, (0.9, 0.9, .12)
+        mc_width, mc_height, mc_color = 30, 30, (.06, .2, .96) 
+        tg_radius, tg_color = 5, (.9, .1, .1)
+
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+            self.viewer = rendering.Viewer(screen_width, screen_height)
+
+            self.lines = dict()
+            self.trans = [None] * self.net.num_nodes
+            self.objs = [None] * self.net.num_nodes
+            # draw edges
+            for u, v in self.net.edges:
+                su, sv = self.net.nodes[u], self.net.nodes[v]
+                if su.is_active and sv.is_active:
+                    sux, suy, _ = su.position
+                    svx, svy, _ = sv.position
+                    sux, suy = sux * scale, suy * scale
+                    svx, svy = svx * scale, svy * scale
+                    line = rendering.Line((sux, suy), (svx, svy))
+                    self.lines[(u, v)] = line
+                    self.viewer.add_geom(line)
+
+            l, r, t, b = -10, 10, 10, -10
+            x, y, _ = self.net.sink.position
+            x, y = x * scale, y * scale
+            sink_obj = rendering.FilledPolygon([(x, y + t), (x + l, y + b), 
+                                                (x + r, y + b), (x, y + t)])
+            self.viewer.add_geom(sink_obj)
+            self.objs[0] = sink_obj
+
+            l, r, t, b = -mc_width / 2, mc_width / 2, mc_height / 2, -mc_height / 2
+            mc = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+            self.mctrans = rendering.Transform()
+            mc.add_attr(self.mctrans)
+            mc.set_color(*mc_color)
+            self.viewer.add_geom(mc)
+
+            for sn in self.net.sensors:
+                l, r, t, b = -sn_width / 2 , sn_width / 2 , sn_height / 2, -sn_height / 2
+                x, y, _ = sn.position
+                x, y = x * scale, y * scale
+
+                snb = self.viewer.draw_polyline([(x + l, y + b), (x + l, y + t), 
+                                           (x + r, y + t), (x + r, y + b),
+                                           (x + l, y + b)])
+                self.viewer.add_geom(snb)
+
+                l, r, t, b = -sn_width / 2 + 1, sn_width / 2 - 1, sn_height / 2 - 1, -sn_height / 2 + 1
+                sno = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+                ep = sn.cur_energy / sn.battery_cap
+                sn_scl = (ep, 1)
+                r, g, b = min(0.9, 1.8 *  (1 - ep)), min(0.9, 1.8 *  ep), .12
+                sn_c = (sn_color[0] * (1 - ep), sn_color[1], sn_color[2])
+                x += (1 - sn_scl[0]) * l 
+                sntrans = rendering.Transform(translation=(x, y), scale=sn_scl)
+                sno.add_attr(sntrans)
+                sno.set_color(r, g, b)
+                self.viewer.add_geom(sno)
+
+                self.trans[sn.id] = sntrans
+                self.objs[sn.id] = sno
+
+            for tg in self.net.targets:
+                x, y, _ = tg.position
+                x, y = x * scale, y * scale
+                circ = self.viewer.draw_circle(tg_radius)
+                circ.add_attr(rendering.Transform(translation=(x, y)))
+                circ.set_color(*tg_color)
+                self.objs[tg.id] = circ
+                self.viewer.add_geom(circ)
+
+
+        if self.state is None:
+            return None
+
+        # transform mc
+        mc_state, sn_state = self.state
+        self.mctrans.set_translation(mc_state[0] * scale, mc_state[1] * scale)
+
+        # transform sns
+        for sn in self.net.sensors:
+            l, r, t, b = -sn_width / 2 - 1, sn_width / 2 - 1, sn_height / 2 - 1, -sn_height / 2 - 1
+            x, y, _ = sn.position
+            x, y = x * scale, y * scale
+            ep = sn.cur_energy / sn.battery_cap
+            sn_scl = (ep, 1)
+            r, g, b = min(0.9, 1.8 *  (1 - ep)), min(0.9, 1.8 *  ep), .12
+            sn_c = (sn_color[0] * (1 - ep), sn_color[1], sn_color[2])
+            x += (1 - sn_scl[0]) * l 
+            self.trans[sn.id].set_scale(ep, 1)
+            self.trans[sn.id].set_translation(x, y)
+            self.objs[sn.id].set_color(r, g, b)
+
+
+        for u, v in self.net.edges:
+            su, sv = self.net.nodes[u], self.net.nodes[v]
+            if su.is_active and sv.is_active:
+                self.lines[(u, v)].set_color(0, 0, 0)
+            else:
+                self.lines[(u, v)].set_color(1, 1, 1)
+
+        return self.viewer.render(return_rgb_array=mode == 'rgb_array')
+
+    def close(self):
+        if self.viewer:
+            self.viewer.close()
+            self.viewer = None
+
 
 
 if __name__ == '__main__':

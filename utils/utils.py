@@ -1,6 +1,10 @@
+from collections import namedtuple
+
 import math
 import torch
 import logging
+
+Point = namedtuple('Point', ['x', 'y', 'z'], defaults=[0, 0, 0])
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,8 +16,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger()
-
-from utils.input import Point
 
 def dist(p1: Point, p2: Point):
     return math.dist(list(p1), list(p2))
