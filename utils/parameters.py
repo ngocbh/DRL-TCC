@@ -1,6 +1,10 @@
 import os
+import argparse
 import yaml
+import torch
 from yaml import Loader
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class Config():
     __dictpath__ = ''
@@ -36,7 +40,21 @@ class Config():
         return d
 
     @classmethod
-    def to_file(cls, filepath, dictpath=None):
+    def to_file(cls, filepath, dictpath=None, mode='merge_cls'):
+        """to_file.
+
+        Parameters
+        ----------
+        filepath :
+            filepath
+        dictpath :
+            dictpath
+        mode : str
+            mode defines behaviour when file exists
+            'new': create new one.
+            'merge_cls': merge and prioritize current settings on cls
+            'merge_file': merge and prioritize settings on file
+        """
         d = cls.to_dict()
         dictpath = dictpath or d['__dictpath__']
         my_config = d
@@ -45,22 +63,26 @@ class Config():
                 my_config = {key: my_config}
 
         config = {}
-        if os.path.exists(filepath):
+        if os.path.exists(filepath) and mode != 'new':
             with open(filepath, mode='r') as file:
                 config = yaml.load(file, Loader=Loader)
 
-        config.update(my_config)
+        if mode == 'merge_file':
+            my_config.update(config)
+            config = my_config
+        else:
+            config.update(my_config)
 
         with open(filepath, mode='w') as file:
-            yaml.dump(my_config, file)
+            yaml.dump(config, file)
 
 class WrsnParameters(Config):
     __dictpath__ = 'wp'
     # width
-    W = 500
-    H = 500
-    sink = (W/2, H/2, 0)
-    depot = (0, 0, 0)
+    W = 200
+    H = 200
+    sink = [W/2, H/2, 0]
+    depot = [0, 0, 0]
     # number of mobile charger
     num_mc = 1 
     # communication range (m)
@@ -68,7 +90,7 @@ class WrsnParameters(Config):
     # sensing range (m)
     r_s = 40 
     # capacity of sensor (J)
-    E_s = 600
+    E_s = 6000
     # When charging a exhausted sensor,
     # allow it joining network when it has at least p percent of battery charged
     p_start_threshold = 0.2
@@ -97,14 +119,14 @@ class WrsnParameters(Config):
     e_da = 5 * 1e-12
 
     # Num of bits
-    k_bit = 8000000
+    k_bit = 20000000
 
     # hop constraint
     hop = 12
 
 class DrlParameters(Config):
     __dictpath__ = 'dp'
-    # input sizes
+    # input sizes (do not tune it)
     MC_STATIC_SIZE = 4
     MC_DYNAMIC_SIZE = 3
     MC_INPUT_SIZE = MC_STATIC_SIZE + MC_DYNAMIC_SIZE
@@ -113,12 +135,28 @@ class DrlParameters(Config):
     SN_INPUT_SIZE = SN_STATIC_SIZE + SN_DYNAMIC_SIZE
 
     # Neural network parameters
-    HIDDEN_SIZE = 128
-    NUM_LAYERS = 1
-    DROPOUT = 0.2
+    hidden_size = 128
+    num_layers = 1
+    dropout = 0.2
 
-    gamma = 0.9
+    # Training parameters
+    train_size = int(128)
+    valid_size = int(64)
+    test_size = int(64)
+    batch_size = 1
+    num_epoch = 1
+    max_step = 1000
+
+    actor_lr = 5e-4
+    critic = 5e-4
+    max_grad_norm = 2.
+    gamma = 0
 
 if __name__ == '__main__':
-    WrsnParameters.from_file('./configs/config.yml')
-    print(WrsnParameters.to_file('./configs/config2.yml'))
+    parser = argparse.ArgumentParser(description='Configuration')
+    parser.add_argument('--dump', default='config.yml', type=str)
+    parser.add_argument('--mode', default='merge_cls', type=str)
+
+    args = parser.parse_args()
+    WrsnParameters.to_file(args.dump, mode=args.mode)
+    DrlParameters.to_file(args.dump, mode=args.mode)

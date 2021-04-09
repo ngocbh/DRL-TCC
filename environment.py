@@ -8,7 +8,7 @@ from gym.utils import seeding
 
 from utils import WrsnParameters as wp
 from utils import NetworkInput, Point
-from utils import energy_consumption, dist, normalize
+from utils import energy_consumption, dist, normalize, bound
 from network import WRSNNetwork
 
 
@@ -153,6 +153,7 @@ class WRSNEnv(gym.Env):
 
     def __init__(self, inp: NetworkInput, seed=None, normalize=False):
         self.inp = inp
+        self.is_connected = inp.is_connected()
         self.world_width = inp.W
         self.world_height = inp.H
         self.depot = inp.depot
@@ -216,6 +217,9 @@ class WRSNEnv(gym.Env):
         """
         err_msg = "%r (%s) invalid" % (action, type(action))
         assert self.action_space.contains(action), err_msg
+
+        if not self.is_connected:
+            return None, (0, 0), True, {}
 
         reward_t, reward_d = 0.0, 0.0
 
@@ -306,8 +310,11 @@ class WRSNEnv(gym.Env):
 
         scale = screen_width / self.world_width
 
-        sn_width, sn_height, sn_color  = 20, 10, (0.9, 0.9, .12)
-        mc_width, mc_height, mc_color = 30, 30, (.06, .2, .96) 
+        sink_width, sink_height = 30, 37.05
+        depot_width, depot_height = 40, 34
+        sn_width, sn_height, sn_color  = 30, 30, (0.9, 0.9, .12)
+        en_width, en_height, en_color  = 20, 6, (0.9, 0.9, .12)
+        mc_width, mc_height, mc_color = 40, 40, (.06, .2, .96) 
         tg_radius, tg_color = 5, (.9, .1, .1)
 
         if self.viewer is None:
@@ -329,38 +336,39 @@ class WRSNEnv(gym.Env):
                     self.lines[(u, v)] = line
                     self.viewer.add_geom(line)
 
-            l, r, t, b = -10, 10, 10, -10
             x, y, _ = self.net.sink.position
             x, y = x * scale, y * scale
-            sink_obj = rendering.FilledPolygon([(x, y + t), (x + l, y + b), 
-                                                (x + r, y + b), (x, y + t)])
+            sink_obj = rendering.Image('images/sink.png', sink_width, sink_height)
+            sink_obj.add_attr(rendering.Transform(translation=(x, y)))
             self.viewer.add_geom(sink_obj)
             self.objs[0] = sink_obj
 
-            l, r, t, b = -mc_width / 2, mc_width / 2, mc_height / 2, -mc_height / 2
-            mc = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-            self.mctrans = rendering.Transform()
-            mc.add_attr(self.mctrans)
-            mc.set_color(*mc_color)
-            self.viewer.add_geom(mc)
+            x, y, _ = self.depot
+            x, y = x * scale, y * scale
+            x, y = bound(x, depot_width/2, wp.W*scale), bound(y, depot_height/2, wp.H*scale)
+            depot_obj = rendering.Image('images/depot.png', depot_width, depot_height)
+            depot_obj.add_attr(rendering.Transform(translation=(x, y)))
+            self.viewer.add_geom(depot_obj)
 
             for sn in self.net.sensors:
                 l, r, t, b = -sn_width / 2 , sn_width / 2 , sn_height / 2, -sn_height / 2
                 x, y, _ = sn.position
                 x, y = x * scale, y * scale
 
-                snb = self.viewer.draw_polyline([(x + l, y + b), (x + l, y + t), 
-                                           (x + r, y + t), (x + r, y + b),
-                                           (x + l, y + b)])
+                snb = rendering.Image('images/sensor2.png', sn_width, sn_height)
+                snb.add_attr(rendering.Transform(translation=(x, y)))
+                # snb = self.viewer.draw_polyline([(x + l, y + b), (x + l, y + t), 
+                                           # (x + r, y + t), (x + r, y + b),
+                                           # (x + l, y + b)])
                 self.viewer.add_geom(snb)
 
-                l, r, t, b = -sn_width / 2 + 1, sn_width / 2 - 1, sn_height / 2 - 1, -sn_height / 2 + 1
+                l, r, t, b = -en_width / 2 + 1, en_width / 2 - 1, en_height / 2 - 1, -en_height / 2 + 1
                 sno = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
                 ep = sn.cur_energy / sn.battery_cap
                 sn_scl = (ep, 1)
                 r, g, b = min(0.9, 1.8 *  (1 - ep)), min(0.9, 1.8 *  ep), .12
-                sn_c = (sn_color[0] * (1 - ep), sn_color[1], sn_color[2])
                 x += (1 - sn_scl[0]) * l 
+                y -= sn_height / 2 + 2
                 sntrans = rendering.Transform(translation=(x, y), scale=sn_scl)
                 sno.add_attr(sntrans)
                 sno.set_color(r, g, b)
@@ -378,24 +386,34 @@ class WRSNEnv(gym.Env):
                 self.objs[tg.id] = circ
                 self.viewer.add_geom(circ)
 
+            l, r, t, b = -mc_width / 2, mc_width / 2, mc_height / 2, -mc_height / 2
+            mc = rendering.Image('images/mc.png', mc_width, mc_height)
+            self.mctrans = rendering.Transform()
+            mc.add_attr(self.mctrans)
+            mc.set_color(*mc_color)
+            self.viewer.add_geom(mc)
+
+
 
         if self.state is None:
             return None
 
         # transform mc
         mc_state, sn_state = self.state
-        self.mctrans.set_translation(mc_state[0] * scale, mc_state[1] * scale)
+        x, y = mc_state[0] * scale, mc_state[1] * scale
+        x, y = bound(x, mc_width/2, wp.W*scale-mc_width/2), bound(y, mc_height/2, wp.H*scale-mc_height/2)
+        self.mctrans.set_translation(x, y)
 
         # transform sns
         for sn in self.net.sensors:
-            l, r, t, b = -sn_width / 2 - 1, sn_width / 2 - 1, sn_height / 2 - 1, -sn_height / 2 - 1
+            l, r, t, b = -en_width / 2 - 1, en_width / 2 - 1, en_height / 2 - 1, -en_height / 2 - 1
             x, y, _ = sn.position
             x, y = x * scale, y * scale
             ep = sn.cur_energy / sn.battery_cap
             sn_scl = (ep, 1)
             r, g, b = min(0.9, 1.8 *  (1 - ep)), min(0.9, 1.8 *  ep), .12
-            sn_c = (sn_color[0] * (1 - ep), sn_color[1], sn_color[2])
             x += (1 - sn_scl[0]) * l 
+            y -= sn_height / 2 + 2
             self.trans[sn.id].set_scale(ep, 1)
             self.trans[sn.id].set_translation(x, y)
             self.objs[sn.id].set_color(r, g, b)

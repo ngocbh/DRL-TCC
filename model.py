@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from utils import device
+
 
 class Encoder(nn.Module):
     """Encodes the static & dynamic states using 1d Convolution."""
@@ -28,7 +30,7 @@ class Encoder(nn.Module):
         return output 
 
 class Attention(nn.Module):
-    def __init__(self, hidden_size, device='cpu'):
+    def __init__(self, hidden_size):
         super(Attention, self).__init__()
 
         self.v = nn.Parameter(torch.zeros((1, 1, hidden_size),
@@ -51,13 +53,13 @@ class Attention(nn.Module):
         return attns
 
 class Pointer(nn.Module):
-    def __init__(self, hidden_size, device='cpu'):
+    def __init__(self, hidden_size):
         super(Pointer, self).__init__()
 
         self.v = nn.Parameter(torch.zeros((1, 1, hidden_size),
                                           device=device, requires_grad=True))
 
-        self.encoder_attn = Attention(hidden_size, device)
+        self.encoder_attn = Attention(hidden_size)
         self.fc1 = nn.Linear(hidden_size * 2, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
 
@@ -90,13 +92,13 @@ class Pointer(nn.Module):
 
 class MCActor(nn.Module):
     def __init__(self, mc_input_size, sn_input_size,
-                 hidden_size, dropout=0., device='cpu'):
+                 hidden_size, dropout=0.):
         super(MCActor, self).__init__()
 
         # Define the encoder & decoder models
         self.mc_encoder = Encoder(mc_input_size, hidden_size)
         self.sn_encoder = Encoder(sn_input_size, hidden_size)
-        self.pointer = Pointer(hidden_size, device=device)
+        self.pointer = Pointer(hidden_size)
 
         for p in self.parameters():
             if len(p.shape) > 1:

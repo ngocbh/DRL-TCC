@@ -133,7 +133,7 @@ class NetworkInput():
             return False
 
         for tg in self.targets:
-            if all(dist(tg, sn) > self.r_c for sn in self.sensors):
+            if all(dist(tg, sn) > self.r_s for sn in self.sensors):
                 return False
 
         return True

@@ -11,13 +11,13 @@ def random_strategy(filepath):
     num_episode = 1
     # inp = NetworkInput.from_file(filepath)
 
-    inp = gen_cgrg(20, 10, np.random.RandomState(1))
+    inp = gen_cgrg(20, 10, np.random.RandomState(3))
 
     env = WRSNEnv(inp)
     
-    # seed = random.randint(1, 1000)
-    # print(seed)
-    # env.seed(383)
+    seed = random.randint(1, 1000)
+    print(seed)
+    env.seed(203)
     for episode in range(num_episode):
         env.reset()
 
@@ -25,20 +25,19 @@ def random_strategy(filepath):
             env.render()
             action = env.action_space.sample()
 
-            print(t, ":Go to ", action)
-
             next_state, reward, done, info = env.step(action)
-            print(next_state)
-            print(reward)
-            print(done)
+            print("mc position: ", next_state[0][0], next_state[0][1])
+            print("reward: ", reward)
+            print("network_lifetime: ", env.net.network_lifetime)
+            print("done: ", done)
+            print("="*10 + '\n\n')
             
-            time.sleep(2)
+            time.sleep(1)
             if done:
-                time.sleep(10)
+                print(env.net.network_lifetime)
+                input()
                 env.close()
                 break
-
-    print(env.net.network_lifetime)
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
