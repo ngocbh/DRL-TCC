@@ -81,8 +81,8 @@ class WrsnParameters(Config):
     # width
     W = 200
     H = 200
-    sink = [W/2, H/2, 0]
-    depot = [0, 0, 0]
+    sink = {'x': W/2,'y': H/2,'z': 0}
+    depot = {'x': 0,'y': 0,'z': 0}
     # number of mobile charger
     num_mc = 1 
     # communication range (m)
@@ -130,7 +130,7 @@ class DrlParameters(Config):
     MC_STATIC_SIZE = 4
     MC_DYNAMIC_SIZE = 3
     MC_INPUT_SIZE = MC_STATIC_SIZE + MC_DYNAMIC_SIZE
-    SN_STATIC_SIZE = 3
+    SN_STATIC_SIZE = 4
     SN_DYNAMIC_SIZE = 2
     SN_INPUT_SIZE = SN_STATIC_SIZE + SN_DYNAMIC_SIZE
 
@@ -140,17 +140,20 @@ class DrlParameters(Config):
     dropout = 0.2
 
     # Training parameters
-    train_size = int(128)
-    valid_size = int(64)
-    test_size = int(64)
+    train_size = 1
+    valid_size = 1
+    test_size = 1
     batch_size = 1
-    num_epoch = 1
+    num_epoch = 100
     max_step = 1000
 
     actor_lr = 5e-4
-    critic = 5e-4
+    critic_lr = 5e-4
     max_grad_norm = 2.
-    gamma = 0
+    gae_lambda = 1.0
+    entropy_coef = 0.01
+    gamma = 0.9
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Configuration')

@@ -26,6 +26,7 @@ class MobileCharger():
         self.cur_energy = battery_cap
         self.is_active = True
         self.lifetime = 0
+        self.travel_distance = 0
 
     def get_state(self):
         return np.array([self.cur_position.x,
@@ -60,8 +61,10 @@ class MobileCharger():
         t1 = d1 / self.velocity
         t2 = d2 / self.velocity
         if t1 == 0:
-            return (0, 0)
+            return (0, 0, True)
         e = d2 * wp.ecr_move
+
+        self.travel_distance += d2
         self.cur_position = Point(src.x + t2/t1 * (dest.x - src.x),
                                   src.y + t2/t1 * (dest.y - src.y),
                                   src.z + t2/t1 * (dest.z - src.z))
@@ -72,7 +75,7 @@ class MobileCharger():
 
         self.lifetime += t2
 
-        return (t2, d2)
+        return t2, d2, (abs(d1 - d2) < 1e-9) # (running time, travel distance, reach dest or not)
 
     def charge(self, ce, te, ecr, mu):
         # If charging rate = energy consumption rate, then charge it until exhausted
@@ -121,10 +124,10 @@ class WRSNEnv(gym.Env):
             (x_coor, y_coor, current_energy, 
             battery_capacity, moving_energy_consumption_rate, 
             charging_energy_rate, velocity)
-        Box(num_sensors, 5): Box[i, :] for observation of sensor ith
-                              the first 3 values are static and
+        Box(num_sensors, 6): Box[i, :] for observation of sensor ith
+                              the first 4 values are static and
                               the rest of them is dynamic
-            (x_coor, y_coor, battery_capacity, 
+            (x_coor, y_coor, battery_capacity, is_sensor, (or_depot) 
             current_energy, energy_consumption_rate)
 
     Actions:
@@ -151,11 +154,33 @@ class WRSNEnv(gym.Env):
         'video.frames_per_second': 10
     }
 
-    def __init__(self, inp: NetworkInput, seed=None, normalize=False):
-        self.inp = inp
+    def __init__(self, inp: NetworkInput=None, sensors=None, targets=None, 
+                 seed=None, normalize=False):
+        if inp is None:
+            if sensors is None or targets is None:
+                raise ValueError('Invalid input WRSNEnv')
+
+            sink = Point(**wp.sink)
+            depot = Point(**wp.depot)
+            num_sensors = len(sensors)
+            num_targets = len(targets)
+
+            sensors = [Point(x * wp.W, y * wp.H) for x, y in sensors]
+            targets = [Point(x * wp.W, y * wp.H) for x, y in targets]
+
+            inp = NetworkInput(wp.W, wp.H,
+                               num_sensors=num_sensors,
+                               num_targets=num_targets,
+                               sink=sink,
+                               depot=depot,
+                               sensors=sensors,
+                               targets=targets,
+                               r_c=wp.r_c,
+                               r_s=wp.r_s)
+
         self.is_connected = inp.is_connected()
-        self.world_width = inp.W
-        self.world_height = inp.H
+        self.world_width = wp.W
+        self.world_height = wp.H
         self.depot = inp.depot
         self.charging_points = inp.charging_points
         self.action_dest = [inp.depot, *inp.charging_points]
@@ -168,11 +193,12 @@ class WRSNEnv(gym.Env):
         high_s_row = np.array([inp.W,
                                inp.H,
                                wp.E_mc,
+                               1,
                                wp.E_mc,
                                max_ecr],
                               dtype=np.float32)
-        self.high_s = np.tile(high_s_row, (inp.num_sensors, 1))
-        self.low_s = np.zeros((inp.num_sensors, 5), dtype=np.float32)
+        self.high_s = np.tile(high_s_row, (inp.num_sensors+1, 1))
+        self.low_s = np.zeros((inp.num_sensors+1, 6), dtype=np.float32)
 
         self.high_mc = np.array([inp.W,
                             inp.H,
@@ -186,12 +212,13 @@ class WRSNEnv(gym.Env):
 
         self.action_space = spaces.Discrete(self.net.num_sensors + 1)
         self.observation_space = spaces.Tuple((spaces.Box(self.low_mc, self.high_mc, dtype=np.float32),
-                                               spaces.Box(self.low_s, self.high_s, shape=(inp.num_sensors, 5),
+                                               spaces.Box(self.low_s, self.high_s, shape=(inp.num_sensors+1, 6),
                                                           dtype=np.float32)))
 
         self.seed(seed)
         self.state = None
         self.viewer = None
+        self.last_action = 0 # mc is initialized at depot position
 
         self.steps_beyond_done = None
 
@@ -225,9 +252,12 @@ class WRSNEnv(gym.Env):
 
         # 2 phases: move to dest and charge (or recharge)
         # phase 1: move MC to dest
-        t1_mc, d_mc = self.mc.move(self.action_dest[action])
+        t1_mc, d_mc, reach_dest = self.mc.move(self.action_dest[action])
         # simultaneously simulate the network running in t_1 seconds
         t1_net = self.net.t_step(t1_mc, charging_sensors=None)
+
+        if reach_dest:
+            self.last_action = action
         
         reward_t += min(t1_mc, t1_net)
         reward_d += d_mc
@@ -290,19 +320,35 @@ class WRSNEnv(gym.Env):
             self.steps_beyond_done += 1
             reward = (0, np.inf)
 
-        return (self.state, reward, done, {})
+        return (self.get_state(), reward, done, {})
+
+    def get_state(self):
+        mc_state = self.mc.get_state()
+        sn_state = self.net.get_state()
+        depot_state = np.array([self.depot.x,
+                                self.depot.y,
+                                0, 0, 0,
+                                wp.ecr_charge],
+                               dtype=np.float32)
+        sn_state = np.vstack([depot_state.reshape(1, -1), sn_state])
+        if self.normalize:
+            return (normalize(mc_state, self.low_mc, self.high_mc),
+                    normalize(sn_state, self.low_s, self.high_s))
+        else:
+            return (mc_state, sn_state)
+
+
+    def get_network_lifetime(self):
+        return self.net.network_lifetime + self.net.t_step(np.inf, charging_sensors=None)
+
+    def get_travel_distance(self):
+        return self.mc.travel_distance
 
     def reset(self):
         self.net.reset()
         self.mc.reset()
-        self.state = (self.mc.get_state(), self.net.get_state())
         self.steps_beyond_done = None
-        return self.state
-
-    def get_normalized_state(self):
-        mc_state, sensors_state = self.state
-        return (normalize(mc_state, self.low_mc, self.high_mc),
-                normalize(sensors_state, self.low_s, self.high_s))
+        return self.get_state()
 
     def render(self, mode='human'):
         screen_width = 600

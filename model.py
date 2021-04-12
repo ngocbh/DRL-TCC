@@ -86,7 +86,6 @@ class Pointer(nn.Module):
 
         v = self.v.expand(sn_hidden.size(0), -1, -1) # (batch_size, 1, hidden_size)
         probs = torch.bmm(v, torch.tanh(sn_hidden + output)).squeeze(1)
-        # probs = F.softmax(probs, dim=1)
 
         return probs
 

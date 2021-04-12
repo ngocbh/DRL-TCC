@@ -94,21 +94,27 @@ class NetworkInput():
         self.relays = tuple(self.relays)
 
     def to_dict(self):
-        return {
-            'W': self.W, 'H': self.H,
-            'num_of_relays': self.num_relays,
-            'num_of_sensors': self.num_sensors,
-            'num_of_charging_points': self.num_charging_points,
-            'num_of_targets': self.num_targets,
-            'relays': list(map(lambda x: x._asdict(), self.relays)),
-            'sensors': list(map(lambda x: x._asdict(), self.sensors)),
-            'targets': list(map(lambda x: x._asdict(), self.targets)),
-            'charging_points': list(map(lambda x: x._asdict(), self.charging_points)),
-            'sink': self.sink._asdict(),
-            'depot': self.depot._asdict(),
-            'communication_range': self.r_c,
-            'sensing_range': self.r_s
-        }
+        ret = {'W': self.W, 'H': self.H}
+        ret['sensors'] = list(map(lambda x: x._asdict(), self.sensors))
+        if self.relays is not None:
+            ret['num_of_relays'] = self.num_relays
+            ret['relays'] = list(map(lambda x: x._asdict(), self.relays))
+        if self.charging_points is not None:
+            ret['num_charging_points'] = self.num_charging_points
+            ret['charging_points'] = list(map(lambda x: x._asdict(), self.charging_points))
+        if self.targets is not None:
+            ret['num_targets'] = self.num_targets
+            ret['targets'] = list(map(lambda x: x._asdict(), self.targets))
+        if self.sink is not None:
+            ret['sink'] = self.sink._asdict()
+        if self.depot is not None:
+            ret['depot'] = self.depot._asdict()
+        ret['communication_range'] = self.r_c
+        ret['sensing_range'] = self.r_s
+        return ret
+
+    def to_numpy(self):
+        pass
 
     def to_file(self, file_path):
         d = self.to_dict()

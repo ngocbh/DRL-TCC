@@ -11,16 +11,13 @@ from utils.parameters import WrsnParameters as wp
 from utils import dist
 
 
-# def gen_cgrg(num_sensors, num_targets, rand=np.random.RandomState()):
-    # return 0
-
 def gen_cgrg(num_sensors, num_targets, rand=np.random.RandomState()):
     num_trial = 0
     while True:
         num_trial += 1
         data = rand.uniform(size=(num_sensors + num_targets, 2))
-        sink = Point(*wp.sink)
-        depot = Point(*wp.depot)
+        sink = Point(**wp.sink)
+        depot = Point(**wp.depot)
         sensors = [Point(x * wp.W, y * wp.H) for x, y in data[:num_sensors]]
         targets = [Point(x * wp.W, y * wp.H) for x, y in data[num_sensors:]]
 
@@ -34,7 +31,7 @@ def gen_cgrg(num_sensors, num_targets, rand=np.random.RandomState()):
                            r_c=wp.r_c,
                            r_s=wp.r_s)
         if inp.is_connected():
-            return inp, num_trial
+            return data[:num_sensors], data[num_sensors:], num_trial
     
 class WRSNDataset(Dataset):
     def __init__(self, num_sensors, num_targets, num_samples=1e4, seed=None):
@@ -50,8 +47,8 @@ class WRSNDataset(Dataset):
         self.num_trial = 0
 
         for _ in range(int(num_samples)):
-            inp, nt = gen_cgrg(num_sensors, num_targets, self.rand)
-            self.dataset.append(inp)
+            sensors, targets, nt = gen_cgrg(num_sensors, num_targets, self.rand)
+            self.dataset.append((sensors, targets))
             self.num_trial += nt
 
     def __len__(self):

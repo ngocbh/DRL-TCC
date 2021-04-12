@@ -64,6 +64,7 @@ class Sensor(Node):
         return np.array([self.position.x,
                          self.position.y,
                          self.battery_cap,
+                         1, # distinguish with depot
                          self.cur_energy,
                          self.ecr],
                         dtype=np.float32)
@@ -233,7 +234,7 @@ class WRSNNetwork():
         charging_sensors : dict()
             dictionary of charing sensors where key is sensor's id and value is energy charning rate 
         """
-        if t <= 0:
+        if t <= 0 or not self.is_coverage:
             return 0
 
         if charging_sensors is None:
@@ -248,9 +249,9 @@ class WRSNNetwork():
 
         while t >= 1.0:
             # self.run_estimation()
-            active = self.active_status
             # do not consider lifetime of base station
-            active[0] = False
+            active = np.logical_and(self.active_status, 
+                                    self.routing_path[:self.num_sensors + 1] != -1)
 
             min_lifetime = np.min(
                 self.estimated_lifetime[active], initial=np.inf)
@@ -291,7 +292,7 @@ class WRSNNetwork():
         return simulated_time
 
     def get_state(self):
-        state = np.zeros((self.num_sensors, 5))
+        state = np.zeros((self.num_sensors, 6))
         for i, sn in enumerate(self.sensors):
             state[i, :] = sn.get_state()
         return state
