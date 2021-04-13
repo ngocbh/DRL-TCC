@@ -26,6 +26,11 @@ class Encoder(nn.Module):
         output : (batch_size, *, hidden_size)
         """
         output = F.relu(self.embed(input))
+        # if not self.training:
+            # print(input)
+            # print(output)
+            # for p in self.parameters():
+                # print(p)
         output = self.embed_2(output)
         return output 
 
@@ -115,6 +120,7 @@ class MCActor(nn.Module):
         """
         mc_hidden = self.mc_encoder(mc_input)
         sn_hidden = self.sn_encoder(sn_input)
+
         probs = self.pointer(mc_hidden, sn_hidden.permute(0, 2, 1))
         return probs
 

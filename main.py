@@ -15,6 +15,69 @@ from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device
 
+def validate(data_loader, actor, save_dir='.', render=False):
+    actor.eval()
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    rewards = []
+    mean_policy_losses = []
+    mean_entropies = []
+    times = [0]
+    net_lifetimes = []
+    mc_travel_dists = []
+
+    for idx, data in enumerate(data_loader):
+        sensors, targets = data
+
+        env = WRSNEnv(sensors=sensors.squeeze(), 
+                      targets=targets.squeeze(), 
+                      normalize=True)
+
+        mc_state, sn_state = env.reset()
+        mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+        sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
+
+        rewards = []
+
+        mask = torch.ones(env.action_space.n)
+
+        for _ in range(dp.max_step):
+            if render:
+                env.render()
+
+            mc_state = mc_state.unsqueeze(0)
+            sn_state = sn_state.unsqueeze(0)
+
+            with torch.no_grad():
+                logit = actor(mc_state, sn_state)
+
+            logit = logit + mask.log()
+            prob = F.softmax(logit, dim=-1)
+
+            prob, action = torch.max(prob, 1)  # Greedy selection
+
+            mask[env.last_action] = 1.0
+            (mc_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
+            mask[env.last_action] = 0.0
+
+            mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+            sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
+
+            rewards.append(reward)
+
+            if done:
+                env.close()
+                break
+
+
+        net_lifetimes.append(env.get_network_lifetime())
+        mc_travel_dists.append(env.get_travel_distance())
+
+    return np.mean(net_lifetimes)
+
+
 
 def train(actor, critic, train_data, valid_data, save_dir):
     train_loader = DataLoader(train_data, 1, True, num_workers=0)
@@ -22,6 +85,9 @@ def train(actor, critic, train_data, valid_data, save_dir):
 
     actor_optim = optim.Adam(actor.parameters(), dp.actor_lr)
     critic_optim = optim.Adam(critic.parameters(), dp.critic_lr)
+
+    best_params = None
+    best_reward = np.inf
 
     for epoch in range(dp.num_epoch):
         actor.train()
@@ -60,31 +126,22 @@ def train(actor, critic, train_data, valid_data, save_dir):
 
                 logit = actor(mc_state, sn_state)
                 logit = logit + mask.log()
-                # print(logit)
 
                 prob = F.softmax(logit, dim=-1)
-                log_prob = F.log_softmax(logit, dim=-1)
-                entropy = -(log_prob * prob).sum(1, keepdim=True)
-                # print(prob)
-                # print(log_prob)
-                # print(entropy)
 
                 value = critic(mc_state, sn_state)
 
-                if actor.training:
-                    m = torch.distributions.Categorical(prob)
+                m = torch.distributions.Categorical(prob)
 
-                    # Sometimes an issue with Categorical & sampling on GPU; See:
-                    # https://github.com/pemami4911/neural-combinatorial-rl-pytorch/issues/5
-                    action = m.sample()
-                    logp = m.log_prob(action)
-                else:
-                    prob, action = torch.max(prob, 1)  # Greedy selection
-                    logp = prob.log()
+                # Sometimes an issue with Categorical & sampling on GPU; See:
+                # https://github.com/pemami4911/neural-combinatorial-rl-pytorch/issues/5
+                action = m.sample()
+                logp = m.log_prob(action)
+                entropy = m.entropy()
 
-                # mask[env.last_action] = 1.
+                mask[env.last_action] = 1.0
                 (mc_state, sn_state), reward, done, info = env.step(action.squeeze().item())
-                # mask[env.last_action] = 0.
+                mask[env.last_action] = 0.0
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -98,19 +155,21 @@ def train(actor, critic, train_data, valid_data, save_dir):
                     env.close()
                     break
 
-            net_lifetimes.append(env.get_network_lifetime())
-            mc_travel_dists.append(env.get_travel_distance())
-
             R = torch.zeros(1, 1)
             if not done:
                 value = critic(mc_state.unsqueeze(0), sn_state.unsqueeze(0))
-                R = value.detach()
+                R = value.detach() if value is not None else value
 
             values.append(R)
+
+            net_lifetimes.append(env.get_network_lifetime())
+            mc_travel_dists.append(env.get_travel_distance())
             
             gae = torch.zeros(1, 1)
             policy_losses = torch.zeros(len(rewards))
             value_losses = torch.zeros(len(rewards))
+
+            R = values[-1]
 
             for i in reversed(range(len(rewards))):
                 reward = rewards[i][0] # using time only
@@ -136,7 +195,7 @@ def train(actor, critic, train_data, valid_data, save_dir):
             value_losses.sum().backward()
             torch.nn.utils.clip_grad_norm_(critic.parameters(), dp.max_grad_norm)
             critic_optim.step()
-            
+
             with torch.no_grad():
                 mean_policy_losses.append(torch.mean(policy_losses).item())
                 mean_entropies.append(torch.mean(torch.Tensor(entropies)).item())
@@ -151,7 +210,7 @@ def train(actor, critic, train_data, valid_data, save_dir):
                 m_net_lifetime = np.mean(net_lifetimes[-100:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-100:])
 
-                msg = 'Batch %d/%d, mean_policy_losses: %2.3f, ' + \
+                msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
                     'mean_entropies: %2.4f, took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
@@ -163,14 +222,40 @@ def train(actor, critic, train_data, valid_data, save_dir):
         m_net_lifetime = np.mean(net_lifetimes)
         m_mc_travel_dist = np.mean(mc_travel_dists)
 
-        msg = 'Mean epoch %d: mean_policy_losses: %2.3f, ' + \
+        # Save the weights
+        epoch_dir = os.path.join(save_dir, '%s' % epoch)
+        if not os.path.exists(epoch_dir):
+            os.makedirs(epoch_dir)
+
+        save_path = os.path.join(epoch_dir, 'actor.pt')
+        torch.save(actor.state_dict(), save_path)
+
+        save_path = os.path.join(epoch_dir, 'critic.pt')
+        torch.save(critic.state_dict(), save_path)
+
+        # Save rendering of validation set tours
+        valid_dir = os.path.join(save_dir, '%s' % epoch)
+
+        mean_valid = validate(valid_loader, actor, valid_dir)
+
+        # Save best model parameters
+        if mean_valid < best_reward:
+
+            best_reward = mean_valid
+
+            save_path = os.path.join(save_dir, 'actor.pt')
+            torch.save(actor.state_dict(), save_path)
+
+            save_path = os.path.join(save_dir, 'critic.pt')
+            torch.save(critic.state_dict(), save_path)
+
+        msg = 'Epoch %d: mean_policy_losses: %2.3f, ' + \
             'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
-            'mean_entropies: %2.4f, took: %2.4fs, (%2.4f / 100 batches)\n'
+            'mean_entropies: %2.4f, mean_valid: %2.4f, ' + \
+            'took: %2.4fs, (%2.4f / 100 batches)\n'
         logger.info(msg % (epoch, mm_policy_loss, m_net_lifetime, 
-                           m_mc_travel_dist, mm_entropies,
+                           m_mc_travel_dist, mm_entropies, mean_valid,
                            time.time() - epoch_start, np.mean(times)))
-
-
 
 
 def main(num_sensors=20, num_targets=10, config=None,
@@ -224,5 +309,3 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True)
 
     main(**vars(args))
-    # gen_cgrg(20, 10, np.random.RandomState(1))
-

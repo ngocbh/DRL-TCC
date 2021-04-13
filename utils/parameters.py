@@ -144,13 +144,13 @@ class DrlParameters(Config):
     valid_size = 1
     test_size = 1
     batch_size = 1
-    num_epoch = 100
+    num_epoch = 1
     max_step = 1000
 
     actor_lr = 5e-4
     critic_lr = 5e-4
     max_grad_norm = 2.
-    gae_lambda = 1.0
+    gae_lambda = 0.9
     entropy_coef = 0.01
     gamma = 0.9
 
