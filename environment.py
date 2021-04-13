@@ -1,4 +1,5 @@
 import gym
+import time
 import math
 import numpy as np
 import pyglet
@@ -165,8 +166,8 @@ class WRSNEnv(gym.Env):
             num_sensors = len(sensors)
             num_targets = len(targets)
 
-            sensors = [Point(x * wp.W, y * wp.H) for x, y in sensors]
-            targets = [Point(x * wp.W, y * wp.H) for x, y in targets]
+            sensors = [Point(x.item() * wp.W, y.item() * wp.H) for x, y in sensors]
+            targets = [Point(x.item() * wp.W, y.item() * wp.H) for x, y in targets]
 
             inp = NetworkInput(wp.W, wp.H,
                                num_sensors=num_sensors,
@@ -483,11 +484,14 @@ class WRSNEnv(gym.Env):
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
-    inp = NetworkInput.from_file('data/test/NIn1.json')
+    inp = NetworkInput.from_file('net1.inp')
     env = WRSNEnv(inp)
     env.reset()
-    state, reward, done, _ = env.step(1)
-    print(state)
-    print(reward, done)
-    print(env.mc.cur_position)
-    print(env.mc.cur_energy)
+    actions = [20,18,8,2,6,8,14,17,14,17,15,4,8,13,4,9]
+    for action in actions:
+        env.render()
+        state, reward, done, _ = env.step(action)
+        # print(state)
+        print(reward, done)
+        print(env.mc.cur_position)
+        print(env.mc.cur_energy)

@@ -140,7 +140,7 @@ class DrlParameters(Config):
     dropout = 0.2
 
     # Training parameters
-    train_size = 100000
+    train_size = 200
     valid_size = 1000
     test_size = 1000
     batch_size = 1

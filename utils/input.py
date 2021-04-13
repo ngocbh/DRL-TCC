@@ -1,6 +1,7 @@
 from collections import namedtuple, deque, defaultdict
 
 import json
+from pprint import pprint
 from utils.utils import dist
 from utils.utils import Point
 
@@ -53,6 +54,7 @@ class NetworkInput():
         sink = Point(**data['sink'])
         depot = Point(**data['depot'])
         r_c = data['communication_range']
+        r_s = data['sensing_range']
 
         if 'num_of_sensors' in data and 'sensors' in data:
             num_sensors = data['num_of_sensors']
@@ -85,7 +87,7 @@ class NetworkInput():
 
         return cls(W, H, num_sensors, num_relays, num_targets,
                    num_charging_points, sink, depot, sensors, relays,
-                   targets, charging_points, r_c)
+                   targets, charging_points, r_c, r_s)
 
     def freeze(self):
         self.sensors = tuple(self.sensors)
@@ -95,15 +97,16 @@ class NetworkInput():
 
     def to_dict(self):
         ret = {'W': self.W, 'H': self.H}
+        ret['num_of_sensors'] = self.num_sensors
         ret['sensors'] = list(map(lambda x: x._asdict(), self.sensors))
         if self.relays is not None:
             ret['num_of_relays'] = self.num_relays
             ret['relays'] = list(map(lambda x: x._asdict(), self.relays))
         if self.charging_points is not None:
-            ret['num_charging_points'] = self.num_charging_points
+            ret['num_of_charging_points'] = self.num_charging_points
             ret['charging_points'] = list(map(lambda x: x._asdict(), self.charging_points))
         if self.targets is not None:
-            ret['num_targets'] = self.num_targets
+            ret['num_of_targets'] = self.num_targets
             ret['targets'] = list(map(lambda x: x._asdict(), self.targets))
         if self.sink is not None:
             ret['sink'] = self.sink._asdict()
@@ -138,7 +141,7 @@ class NetworkInput():
         if any(not visited[sn] for sn in self.sensors):
             return False
 
-        for tg in self.targets:
+        for i, tg in enumerate(self.targets):
             if all(dist(tg, sn) > self.r_s for sn in self.sensors):
                 return False
 

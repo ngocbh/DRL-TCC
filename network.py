@@ -7,7 +7,7 @@ import enum
 import math
 
 from utils import WrsnParameters as wp
-from utils import NetworkInput, Point
+from utils import NetworkInput, Point, logger
 from utils import dist, transmission_energy, energy_consumption
 
 class NodeType(enum.Enum):
@@ -92,6 +92,7 @@ class WRSNNetwork():
     """
 
     def __init__(self, inp: NetworkInput):
+        self.inp = inp
         self.num_sensors = inp.num_sensors
         self.num_targets = inp.num_targets
         self.num_charging_points = inp.num_charging_points
@@ -129,12 +130,16 @@ class WRSNNetwork():
                         self.edges.add((node.id, other.id))
 
     def __check_health(self):
+        changed = False
         for sn in self.sensors:
             if not sn.is_active and sn.cur_energy >= wp.p_auto_start_threshold * sn.battery_cap:
                 sn.activate()
+                changed = True
             if sn.is_active and (sn.cur_energy <= wp.p_sleep_threshold * sn.battery_cap or
                                  (sn.ecr and sn.cur_energy / sn.ecr < 1.0)):
                 sn.deactivate()
+                changed = True
+        return changed
 
     def __estimate_topology(self):
         """__dijkstra.
@@ -216,13 +221,17 @@ class WRSNNetwork():
             Only simulate sequential results in base station
         """
         self.__check_health()
-        self.routing_path = self.__estimate_topology()
-        self.estimated_ecr = self.__estimate_ecr(self.routing_path)
-        self.estimated_lifetime = np.zeros(self.num_sensors + 1)
-        for sn in self.sensors:
-            if sn.is_active and self.estimated_ecr[sn.id] > 1e-8:
-                self.estimated_lifetime[sn.id] = sn.cur_energy / \
-                    self.estimated_ecr[sn.id]
+    
+        while True:
+            self.routing_path = self.__estimate_topology()
+            self.estimated_ecr = self.__estimate_ecr(self.routing_path)
+            self.estimated_lifetime = np.zeros(self.num_sensors + 1)
+            for sn in self.sensors:
+                if sn.is_active and self.estimated_ecr[sn.id] > 1e-8:
+                    self.estimated_lifetime[sn.id] = sn.cur_energy / \
+                        self.estimated_ecr[sn.id]
+            if not self.__check_health():
+                break
 
     def t_step(self, t: int, charging_sensors=None):
         """ simulate network running for t seconds.
@@ -258,6 +267,10 @@ class WRSNNetwork():
 
             time_jump = int(min(min_lifetime, t))
             if time_jump == 0:
+                logger.error(active)
+                logger.error(t, min_lifetime)
+                logger.error(self.estimated_lifetime)
+                self.inp.to_file('data/bug/net1.inp')
                 raise ValueError('Unexpected zero-value in estimated_lifetime')
 
             # run network for time_jump seconds
@@ -300,6 +313,6 @@ class WRSNNetwork():
 
 
 if __name__ == '__main__':
-    inp = NetworkInput.from_file('data/test/NIn1.json')
+    inp = NetworkInput.from_file('net1.inp')
     net = WRSNNetwork(inp)
     net.t_step(5000, charging_sensors={2: 1})
