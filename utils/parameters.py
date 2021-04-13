@@ -140,11 +140,11 @@ class DrlParameters(Config):
     dropout = 0.2
 
     # Training parameters
-    train_size = 1
-    valid_size = 1
-    test_size = 1
+    train_size = 100000
+    valid_size = 1000
+    test_size = 1000
     batch_size = 1
-    num_epoch = 1
+    num_epoch = 50
     max_step = 1000
 
     actor_lr = 5e-4

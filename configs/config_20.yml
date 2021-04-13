@@ -3,20 +3,24 @@ dp:
   MC_INPUT_SIZE: 7
   MC_STATIC_SIZE: 4
   SN_DYNAMIC_SIZE: 2
-  SN_INPUT_SIZE: 5
-  SN_STATIC_SIZE: 3
+  SN_INPUT_SIZE: 6
+  SN_STATIC_SIZE: 4
   __dictpath__: dp
   __doc__: null
   actor_lr: 0.0005
-  batch_size: 256
-  critic: 0.0005
+  batch_size: 1
+  critic_lr: 0.0005
   dropout: 0.2
-  gamma: 0
+  entropy_coef: 0.01
+  gae_lambda: 0.9
+  gamma: 0.9
   hidden_size: 128
   max_grad_norm: 2.0
+  max_step: 1000
+  num_epoch: 50
   num_layers: 1
   test_size: 1000
-  train_size: 10000
+  train_size: 100000
   valid_size: 1000
 wp:
   E_mc: 1000000.0
@@ -27,9 +31,9 @@ wp:
   __doc__: null
   beta: 30.0
   depot:
-  - 0
-  - 0
-  - 0
+    x: 0
+    y: 0
+    z: 0
   e_da: 5.0e-12
   e_elec: 5.0000000000000004e-08
   e_fs: 1.0e-11
@@ -47,7 +51,7 @@ wp:
   r_c: 80
   r_s: 40
   sink:
-  - 100.0
-  - 100.0
-  - 0
+    x: 100.0
+    y: 100.0
+    z: 0
   v_mc: 5
