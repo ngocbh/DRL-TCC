@@ -80,6 +80,7 @@ def validate(data_loader, actor, save_dir='.', render=False):
 
 
 def train(actor, critic, train_data, valid_data, save_dir):
+    logger.info("Begin training phase")
     train_loader = DataLoader(train_data, 1, True, num_workers=0)
     valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
 
@@ -90,6 +91,7 @@ def train(actor, critic, train_data, valid_data, save_dir):
     best_reward = np.inf
 
     for epoch in range(dp.num_epoch):
+        logger.info("Start epoch %d" % epoch)
         actor.train()
         critic.train()
 
@@ -260,14 +262,19 @@ def train(actor, critic, train_data, valid_data, save_dir):
 
 def main(num_sensors=20, num_targets=10, config=None,
           checkpoint=None, save_dir='checkpoints', seed=123, mode='train'):
-    # logger.info("Training problem with %d sensors %d targets (checkpoint: %s) ()")
+    logger.info("Training problem with %d sensors %d targets (checkpoint: %s)" % (
+        num_sensors, num_targets, checkpoint
+    ))
+
     if config is not None:
         wp.from_file(config)
         dp.from_file(config)
 
     save_dir = os.path.join(save_dir, f'mc_{num_sensors}_{num_targets}')
 
+    logger.info("Generating training dataset")
     train_data = WRSNDataset(num_sensors, num_targets, dp.train_size, seed)
+    logger.info("Generating validation dataset")
     valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
 
 
