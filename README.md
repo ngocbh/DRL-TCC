@@ -1,7 +1,6 @@
 # odmc-wrsn
 On-demand Mobile Charger in Wireless Rechargable Sensor Network
 
-## Testing
 ## Acknowledgements
 
 Parts of the code are based on the following source-codes:
