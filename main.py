@@ -71,7 +71,6 @@ def validate(data_loader, actor, save_dir='.', render=False):
                 env.close()
                 break
 
-
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
 

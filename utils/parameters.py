@@ -119,7 +119,7 @@ class WrsnParameters(Config):
     e_da = 5 * 1e-12
 
     # Num of bits
-    k_bit = 20000000
+    k_bit = 8000000
 
     # hop constraint
     hop = 12
@@ -144,7 +144,7 @@ class DrlParameters(Config):
     valid_size = 1000
     test_size = 1000
     batch_size = 1
-    num_epoch = 50
+    num_epoch = 1
     max_step = 1000
 
     actor_lr = 5e-4

@@ -3,7 +3,7 @@ On-demand Mobile Charger in Wireless Rechargable Sensor Network
 
 ## Acknowledgements
 
-This repository includes adaptations of the following repositories as baselines:
+Parts of the code are based on the following source-codes:
 
 * https://github.com/mveres01/pytorch-drl4vrp
 * https://github.com/openai/gym
