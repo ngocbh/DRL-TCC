@@ -11,15 +11,18 @@ dp:
   batch_size: 1
   critic_lr: 0.0005
   dropout: 0.2
-  gamma: 0
+  entropy_coef: 0.01
+  gae_lambda: 0.9
+  gamma: 0.9
   hidden_size: 128
+  log_size: 100
   max_grad_norm: 2.0
   max_step: 1000
-  num_epoch: 1
+  num_epoch: 20
   num_layers: 1
-  test_size: 1
-  train_size: 1
-  valid_size: 1
+  test_size: 1000
+  train_size: 100000
+  valid_size: 1000
 wp:
   E_mc: 1000000.0
   E_s: 6000
@@ -39,7 +42,7 @@ wp:
   ecr_charge: 2000
   ecr_move: 50
   hop: 12
-  k_bit: 20000000
+  k_bit: 8000000
   lamb: 36.0
   mu: 20
   num_mc: 1

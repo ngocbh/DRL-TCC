@@ -13,7 +13,8 @@ from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
-from utils import logger, gen_cgrg, device
+from utils import logger, gen_cgrg, device, writer
+
 
 def validate(data_loader, actor, save_dir='.', render=False):
     actor.eval()
@@ -74,11 +75,11 @@ def validate(data_loader, actor, save_dir='.', render=False):
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
 
-    return np.mean(net_lifetimes)
+    return np.mean(net_lifetimes), np.mean(mc_travel_dists)
 
 
 
-def train(actor, critic, train_data, valid_data, save_dir):
+def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
     logger.info("Begin training phase")
     train_loader = DataLoader(train_data, 1, True, num_workers=0)
     valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
@@ -86,10 +87,12 @@ def train(actor, critic, train_data, valid_data, save_dir):
     actor_optim = optim.Adam(actor.parameters(), dp.actor_lr)
     critic_optim = optim.Adam(critic.parameters(), dp.critic_lr)
 
+
     best_params = None
     best_reward = np.inf
+    sample_inp = None
 
-    for epoch in range(dp.num_epoch):
+    for epoch in range(epoch_start_idx, dp.num_epoch):
         logger.info("Start epoch %d" % epoch)
         actor.train()
         critic.train()
@@ -124,6 +127,8 @@ def train(actor, critic, train_data, valid_data, save_dir):
             for _ in range(dp.max_step):
                 mc_state = mc_state.unsqueeze(0)
                 sn_state = sn_state.unsqueeze(0)
+                if sample_inp is None:
+                    sample_inp = (mc_state, sn_state)
 
                 logit = actor(mc_state, sn_state)
                 logit = logit + mask.log()
@@ -198,10 +203,21 @@ def train(actor, critic, train_data, valid_data, save_dir):
             critic_optim.step()
 
             with torch.no_grad():
-                mean_policy_losses.append(torch.mean(policy_losses).item())
-                mean_entropies.append(torch.mean(torch.Tensor(entropies)).item())
+                pl = torch.mean(policy_losses).item()
+                mean_policy_losses.append(pl)
+                vl = torch.mean(value_losses).item()
 
-            if (idx + 1) % 100 == 0:
+                e = torch.mean(torch.Tensor(entropies)).item()
+                mean_entropies.append(e)
+
+                global_step = idx + epoch * len(train_loader)
+                writer.add_scalar('batch/policy_loss', pl, global_step)
+                writer.add_scalar('batch/value_loss', vl, global_step)
+                writer.add_scalar('batch/entropy', e, global_step)
+                writer.add_scalar('batch/net_lifetime', net_lifetimes[-1], global_step)
+                writer.add_scalar('batch/mc_travel_dist', mc_travel_dists[-1], global_step)
+
+            if (idx + 1) % dp.log_size == 0:
                 end = time.time()
                 times.append(end-start)
                 start = end
@@ -223,6 +239,7 @@ def train(actor, critic, train_data, valid_data, save_dir):
         m_net_lifetime = np.mean(net_lifetimes)
         m_mc_travel_dist = np.mean(mc_travel_dists)
 
+
         # Save the weights
         epoch_dir = os.path.join(save_dir, '%s' % epoch)
         if not os.path.exists(epoch_dir):
@@ -237,12 +254,23 @@ def train(actor, critic, train_data, valid_data, save_dir):
         # Save rendering of validation set tours
         valid_dir = os.path.join(save_dir, '%s' % epoch)
 
-        mean_valid = validate(valid_loader, actor, valid_dir)
+        m_net_lifetime_valid, m_mc_travel_dist_valid = validate(valid_loader,
+                                                                actor,
+                                                                valid_dir)
+
+        writer.add_scalar('epoch/policy_loss', mm_policy_loss, epoch)
+        writer.add_scalar('epoch/entropy', e, epoch)
+        writer.add_scalars('epoch/net_lifetime', {'train': m_net_lifetime,
+                                                  'valid': m_net_lifetime_valid},
+                           epoch)
+        writer.add_scalars('epoch/mc_travel_dist', {'train': m_mc_travel_dist,
+                                                    'valid': m_mc_travel_dist_valid},
+                           epoch)
 
         # Save best model parameters
-        if mean_valid < best_reward:
+        if m_net_lifetime_valid < best_reward:
 
-            best_reward = mean_valid
+            best_reward = m_net_lifetime_valid
 
             save_path = os.path.join(save_dir, 'actor.pt')
             torch.save(actor.state_dict(), save_path)
@@ -252,24 +280,31 @@ def train(actor, critic, train_data, valid_data, save_dir):
 
         msg = 'Epoch %d: mean_policy_losses: %2.3f, ' + \
             'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
-            'mean_entropies: %2.4f, mean_valid: %2.4f, ' + \
+            'mean_entropies: %2.4f, m_net_lifetime_valid: %2.4f, ' + \
             'took: %2.4fs, (%2.4f / 100 batches)\n'
         logger.info(msg % (epoch, mm_policy_loss, m_net_lifetime, 
-                           m_mc_travel_dist, mm_entropies, mean_valid,
+                           m_mc_travel_dist, mm_entropies, m_net_lifetime_valid,
                            time.time() - epoch_start, np.mean(times)))
+
+    writer.add_graph(actor, sample_inp)
 
 
 def main(num_sensors=20, num_targets=10, config=None,
-          checkpoint=None, save_dir='checkpoints', seed=123, mode='train'):
-    logger.info("Training problem with %d sensors %d targets (checkpoint: %s)" % (
-        num_sensors, num_targets, checkpoint
-    ))
+         checkpoint=None, save_dir='checkpoints', seed=123, 
+         mode='train', epoch_start=0):
+    logger.info("Training problem with %d sensors %d targets: " + 
+                "(checkpoint: %s, seed : %d, config: %s)", 
+                num_sensors, num_targets, checkpoint, seed, config or 'default')
 
     if config is not None:
         wp.from_file(config)
         dp.from_file(config)
 
-    save_dir = os.path.join(save_dir, f'mc_{num_sensors}_{num_targets}')
+    if config is not None:
+        basefile = os.path.splitext(os.path.basename(config))[0]
+    else:
+        basefile = 'default'
+    save_dir = os.path.join(save_dir, basefile)
 
     logger.info("Generating training dataset")
     train_data = WRSNDataset(num_sensors, num_targets, dp.train_size, seed)
@@ -294,7 +329,7 @@ def main(num_sensors=20, num_targets=10, config=None,
         critic.load_state_dict(torch.load(path, device))
 
     if mode == 'train':
-        train(actor, critic, train_data, valid_data, save_dir)
+        train(actor, critic, train_data, valid_data, save_dir, epoch_start)
 
 
 if __name__ == '__main__':
@@ -306,6 +341,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', '-cf', default=None, type=str)
     parser.add_argument('--checkpoint', '-cp', default=None, type=str)
     parser.add_argument('--save_dir', '-sd', default='checkpoints', type=str)
+    parser.add_argument('--epoch_start', default=0, type=int)
 
     args = parser.parse_args()
 
