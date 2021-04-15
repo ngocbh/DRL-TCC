@@ -202,6 +202,10 @@ class WRSNNetwork():
     def active_status(self):
         return np.array([self.nodes[i].is_active for i in range(self.num_sensors + 1)])
 
+    @property
+    def sum_estimated_ecr(self):
+        return np.sum(self.estimated_ecr)
+
     def reset(self):
         """reset.
         """

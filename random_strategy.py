@@ -1,45 +1,61 @@
 import numpy as np
 import time
 import random
+import torch
+
+from torch.utils.data import DataLoader
 
 from environment import WRSNEnv
 
+from utils import WRSNDataset
+from utils import DrlParameters as dp
 from utils import NetworkInput
 from utils import gen_cgrg
 
-def random_strategy(filepath):
-    num_episode = 1
-    # inp = NetworkInput.from_file(filepath)
+def random_strategy(data_loader, save_dir='.', render=False):
+    times = [0]
+    net_lifetimes = []
+    mc_travel_dists = []
+    mean_ecrs = []
 
-    inp = gen_cgrg(20, 10, np.random.RandomState(3))
+    for _ in range(dp.num_epoch):
+        for data in data_loader:
+            sensors, targets = data
 
-    env = WRSNEnv(inp)
+            env = WRSNEnv(sensors=sensors.squeeze(), 
+                          targets=targets.squeeze(), 
+                          normalize=False)
+            env.reset()
+
+            mask = np.ones(env.action_space.n)
+            ecrs = []
+
+            for _ in range(dp.max_step):
+                if render:
+                    env.render()
+                    
+                action = np.random.choice(np.nonzero(mask)[0])
+                mask[env.last_action] = 1
+                _, reward, done, _ = env.step(action)
+                mask[env.last_action] = 0
+                ecrs.append(env.net.sum_estimated_ecr)
+
+                if done:
+                    env.close()
+                    break
+
+            net_lifetimes.append(env.get_network_lifetime())
+            mc_travel_dists.append(env.get_travel_distance())
+            mean_ecrs.append(np.mean(ecrs))
     
-    seed = random.randint(1, 1000)
-    print(seed)
-    env.seed(203)
-    for episode in range(num_episode):
-        env.reset()
-
-        for t in range(1000):
-            env.render()
-            action = env.action_space.sample()
-
-            next_state, reward, done, info = env.step(action)
-            print("mc position: ", next_state[0][0], next_state[0][1])
-            print("reward: ", reward)
-            print("network_lifetime: ", env.net.network_lifetime)
-            print("done: ", done)
-            print("="*10 + '\n\n')
-            
-            time.sleep(1)
-            if done:
-                print(env.net.network_lifetime)
-                input()
-                env.close()
-                break
+    print(np.mean(mean_ecrs))
+    print(np.mean(net_lifetimes))
+    return np.mean(net_lifetimes)
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
-    random_strategy('data/test/NIn1.json')
+
+    dataset = WRSNDataset(20, 10, 1000, 1)
+    data_loader = DataLoader(dataset, 1, False, num_workers=0)
+    random_strategy(data_loader)
 
