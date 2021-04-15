@@ -16,7 +16,7 @@ from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
 
 
-def validate(data_loader, actor, save_dir='.', render=False):
+def validate(data_loader, actor, save_dir='.', render=False, verbose=False):
     actor.eval()
 
     if not os.path.exists(save_dir):
@@ -28,8 +28,12 @@ def validate(data_loader, actor, save_dir='.', render=False):
     times = [0]
     net_lifetimes = []
     mc_travel_dists = []
+    mean_aggregated_ecrs = []
+    mean_node_failures = []
 
     for idx, data in enumerate(data_loader):
+        if verbose: print("Test %d" % idx)
+
         sensors, targets = data
 
         env = WRSNEnv(sensors=sensors.squeeze(), 
@@ -41,10 +45,12 @@ def validate(data_loader, actor, save_dir='.', render=False):
         sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
         rewards = []
+        aggregated_ecrs = []
+        node_failures = []
 
         mask = torch.ones(env.action_space.n)
 
-        for _ in range(dp.max_step):
+        for step in range(dp.max_step):
             if render:
                 env.render()
 
@@ -58,6 +64,7 @@ def validate(data_loader, actor, save_dir='.', render=False):
             prob = F.softmax(logit, dim=-1)
 
             prob, action = torch.max(prob, 1)  # Greedy selection
+            
 
             mask[env.last_action] = 1.0
             (mc_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
@@ -66,17 +73,40 @@ def validate(data_loader, actor, save_dir='.', render=False):
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
+            if verbose: 
+                print("Step %d: Go to %d (prob: %2.4f) => reward (%2.4f, %2.4f)\n" % 
+                      (step, action, prob, reward[0], reward[1]))
+                print("Current network lifetime: %2.4f \n\n" % env.net.network_lifetime)
+
             rewards.append(reward)
+            aggregated_ecrs.append(env.net.aggregated_ecr)
+            node_failures.append(env.net.node_failures)
 
             if done:
+                if verbose: print("End episode! Press any button to continue...")
+                if render:
+                    env.render()
+                    input()
                 env.close()
                 break
 
+            if render:
+                time.sleep(0.7)
+
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
+        mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
+        mean_node_failures.append(np.mean(node_failures))
 
-    return np.mean(net_lifetimes), np.mean(mc_travel_dists)
+    ret = {}
+    ret['lifetime_mean'] = np.mean(net_lifetimes)
+    ret['lifetime_std'] = np.std(net_lifetimes)
+    ret['travel_dist_mean'] = np.mean(mc_travel_dists)
+    ret['travel_dist_std'] = np.std(mc_travel_dists)
+    ret['aggregated_ecr'] = np.mean(mean_aggregated_ecrs)
+    ret['node_failures'] = np.mean(mean_node_failures)
 
+    return ret
 
 
 def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
@@ -291,8 +321,8 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
 def main(num_sensors=20, num_targets=10, config=None,
          checkpoint=None, save_dir='checkpoints', seed=123, 
-         mode='train', epoch_start=0):
-    logger.info("Training problem with %d sensors %d targets: " + 
+         mode='train', epoch_start=0, render=False, verbose=False):
+    logger.info("Running problem with %d sensors %d targets: " + 
                 "(checkpoint: %s, seed : %d, config: %s)", 
                 num_sensors, num_targets, checkpoint, seed, config or 'default')
 
@@ -305,12 +335,6 @@ def main(num_sensors=20, num_targets=10, config=None,
     else:
         basefile = 'default'
     save_dir = os.path.join(save_dir, basefile)
-
-    logger.info("Generating training dataset")
-    train_data = WRSNDataset(num_sensors, num_targets, dp.train_size, seed)
-    logger.info("Generating validation dataset")
-    valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
-
 
     actor = MCActor(dp.MC_INPUT_SIZE, 
                     dp.SN_INPUT_SIZE,
@@ -329,7 +353,20 @@ def main(num_sensors=20, num_targets=10, config=None,
         critic.load_state_dict(torch.load(path, device))
 
     if mode == 'train':
+        logger.info("Generating training dataset")
+        train_data = WRSNDataset(num_sensors, num_targets, dp.train_size, seed)
+        logger.info("Generating validation dataset")
+        valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
         train(actor, critic, train_data, valid_data, save_dir, epoch_start)
+
+    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed + 2)
+    test_loader = DataLoader(test_data, 1, False, num_workers=0)
+
+    ret = validate(test_loader, actor, save_dir, render, verbose)
+    lifetime, travel_dist = ret['lifetime_mean'], ret['travel_dist_mean']
+
+    logger.info("Test metrics: Mean network lifetime %2.4f, mean travel distance: %2.4f",
+                lifetime, travel_dist)
 
 
 if __name__ == '__main__':
@@ -342,6 +379,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', '-cp', default=None, type=str)
     parser.add_argument('--save_dir', '-sd', default='checkpoints', type=str)
     parser.add_argument('--epoch_start', default=0, type=int)
+    parser.add_argument('--render', '-r', action='store_true')
+    parser.add_argument('--verbose', '-v', action='store_true')
 
     args = parser.parse_args()
 

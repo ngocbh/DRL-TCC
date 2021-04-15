@@ -42,7 +42,7 @@ wp:
   ecr_charge: 2000
   ecr_move: 50
   hop: 12
-  k_bit: 20000000
+  k_bit: 8000000
   lamb: 36.0
   mu: 20
   num_mc: 1

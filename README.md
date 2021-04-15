@@ -1,5 +1,41 @@
 # odmc-wrsn
-On-demand Mobile Charger in Wireless Rechargable Sensor Network
+On-demand Mobile Charger in Wireless Rechargeable Sensor Network
+
+## Usage
+
+```
+python main.py --help
+```
+
+```sh
+usage: main.py [-h] [--num_sensors NUM_SENSORS] [--num_targets NUM_TARGETS] [--mode {train,eval}] [--config CONFIG] [--checkpoint CHECKPOINT] [--save_dir SAVE_DIR]
+               [--epoch_start EPOCH_START] [--render] [--verbose]
+
+Mobile Charger Trainer
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --num_sensors NUM_SENSORS, -ns NUM_SENSORS
+  --num_targets NUM_TARGETS, -nt NUM_TARGETS
+  --mode {train,eval}
+  --config CONFIG, -cf CONFIG
+  --checkpoint CHECKPOINT, -cp CHECKPOINT
+  --save_dir SAVE_DIR, -sd SAVE_DIR
+  --epoch_start EPOCH_START
+  --render, -r
+  --verbose, -v
+```
+## Simulation
+To run simulation:
+
+```sh
+python main.py --mode eval --render --verbose -cp checkpoint_path -cf config_path
+```
+For examples:
+
+```sh
+python main.py --checkpoint checkpoints/mc_20_10_0/21 --config configs/mc_20_10_0.yml --mode eval --render --verbose
+```
 
 ## Acknowledgements
 
