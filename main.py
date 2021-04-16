@@ -240,12 +240,6 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 e = torch.mean(torch.Tensor(entropies)).item()
                 mean_entropies.append(e)
 
-                global_step = idx + epoch * len(train_loader)
-                writer.add_scalar('batch/policy_loss', pl, global_step)
-                writer.add_scalar('batch/value_loss', vl, global_step)
-                writer.add_scalar('batch/entropy', e, global_step)
-                writer.add_scalar('batch/net_lifetime', net_lifetimes[-1], global_step)
-                writer.add_scalar('batch/mc_travel_dist', mc_travel_dists[-1], global_step)
 
             if (idx + 1) % dp.log_size == 0:
                 end = time.time()
@@ -256,6 +250,12 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 mm_entropies = np.mean(mean_entropies[-100:])
                 m_net_lifetime = np.mean(net_lifetimes[-100:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-100:])
+
+                global_step = idx/100 + epoch * len(train_loader)
+                writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
+                writer.add_scalar('batch/entropy', mm_entropies, global_step)
+                writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
+                writer.add_scalar('batch/mc_travel_dist', m_mc_travel_dist, global_step)
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
