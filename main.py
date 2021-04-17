@@ -284,9 +284,9 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
         # Save rendering of validation set tours
         valid_dir = os.path.join(save_dir, '%s' % epoch)
 
-        m_net_lifetime_valid, m_mc_travel_dist_valid = validate(valid_loader,
-                                                                actor,
-                                                                valid_dir)
+        res = validate(valid_loader, actor, valid_dir)
+        m_net_lifetime_valid = res['lifetime_mean'] 
+        m_mc_travel_dist_valid = res['travel_dist_mean']
 
         writer.add_scalar('epoch/policy_loss', mm_policy_loss, epoch)
         writer.add_scalar('epoch/entropy', e, epoch)
