@@ -58,8 +58,10 @@ def validate(data_loader, save_dir='.', render=False):
     ret['lifetime_std'] = np.std(net_lifetimes)
     ret['travel_dist_mean'] = np.mean(mc_travel_dists)
     ret['travel_dist_std'] = np.std(mc_travel_dists)
-    ret['aggregated_ecr'] = np.mean(mean_aggregated_ecrs)
-    ret['node_failures'] = np.mean(mean_node_failures)
+    ret['aggregated_ecr_mean'] = np.mean(mean_aggregated_ecrs)
+    ret['aggregated_ecr_std'] = np.std(mean_aggregated_ecrs)
+    ret['node_failures_mean'] = np.mean(mean_node_failures)
+    ret['node_failures_std'] = np.std(mean_node_failures)
 
     return ret
 

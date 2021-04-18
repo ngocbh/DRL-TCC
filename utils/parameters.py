@@ -13,7 +13,12 @@ class Config():
     def from_dict(cls, d):
         d = d or {}
         for key, value in d.items():
+            cls_value = getattr(cls, key)
+            type_value = type(cls_value) if type(cls_value) is not type else cls_value
+            if isinstance(cls_value, Config) or issubclass(type_value, Config):
+                value = cls_value.from_dict(value)
             setattr(cls, key, value)
+        return cls
 
     @classmethod
     def from_file(cls, filepath, dictpath=None):
@@ -30,6 +35,7 @@ class Config():
             my_config = None
 
         cls.from_dict(my_config)
+        return cls
 
     @classmethod
     def to_dict(cls):
@@ -37,6 +43,9 @@ class Config():
         for key, value in cls.__dict__.items():
             if '__' in key and key not in ['__dictpath__', '__doc__']:
                 d.pop(key, None)
+            type_value = type(value) if type(value) is not type else value
+            if isinstance(value, Config) or issubclass(type_value, Config):
+                d[key] = value.to_dict()
         return d
 
     @classmethod
@@ -55,6 +64,8 @@ class Config():
             'merge_cls': merge and prioritize current settings on cls
             'merge_file': merge and prioritize settings on file
         """
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
         d = cls.to_dict()
         dictpath = dictpath or d['__dictpath__']
         my_config = d

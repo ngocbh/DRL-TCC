@@ -16,11 +16,8 @@ from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
 
 
-def validate(data_loader, actor, save_dir='.', render=False, verbose=False):
+def validate(data_loader, actor, render=False, verbose=False):
     actor.eval()
-
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
 
     rewards = []
     mean_policy_losses = []
@@ -91,7 +88,8 @@ def validate(data_loader, actor, save_dir='.', render=False, verbose=False):
                 break
 
             if render:
-                time.sleep(0.7)
+                time.sleep(0.5)
+                # pass
 
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
@@ -103,8 +101,10 @@ def validate(data_loader, actor, save_dir='.', render=False, verbose=False):
     ret['lifetime_std'] = np.std(net_lifetimes)
     ret['travel_dist_mean'] = np.mean(mc_travel_dists)
     ret['travel_dist_std'] = np.std(mc_travel_dists)
-    ret['aggregated_ecr'] = np.mean(mean_aggregated_ecrs)
-    ret['node_failures'] = np.mean(mean_node_failures)
+    ret['aggregated_ecr_mean'] = np.mean(mean_aggregated_ecrs)
+    ret['aggregated_ecr_std'] = np.std(mean_aggregated_ecrs)
+    ret['node_failures_mean'] = np.mean(mean_node_failures)
+    ret['node_failures_std'] = np.std(mean_node_failures)
 
     return ret
 
@@ -281,20 +281,19 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
         save_path = os.path.join(epoch_dir, 'critic.pt')
         torch.save(critic.state_dict(), save_path)
 
-        # Save rendering of validation set tours
-        valid_dir = os.path.join(save_dir, '%s' % epoch)
-
-        res = validate(valid_loader, actor, valid_dir)
+        res = validate(valid_loader, actor)
         m_net_lifetime_valid = res['lifetime_mean'] 
         m_mc_travel_dist_valid = res['travel_dist_mean']
 
         writer.add_scalar('epoch/policy_loss', mm_policy_loss, epoch)
         writer.add_scalar('epoch/entropy', e, epoch)
-        writer.add_scalars('epoch/net_lifetime', {'train': m_net_lifetime,
-                                                  'valid': m_net_lifetime_valid},
+        writer.add_scalars('epoch/net_lifetime', 
+                           {'train': m_net_lifetime,
+                            'valid': m_net_lifetime_valid},
                            epoch)
-        writer.add_scalars('epoch/mc_travel_dist', {'train': m_mc_travel_dist,
-                                                    'valid': m_mc_travel_dist_valid},
+        writer.add_scalars('epoch/mc_travel_dist', 
+                           {'train': m_mc_travel_dist,
+                            'valid': m_mc_travel_dist_valid},
                            epoch)
 
         # Save best model parameters
@@ -362,7 +361,7 @@ def main(num_sensors=20, num_targets=10, config=None,
     test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed + 2)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
-    ret = validate(test_loader, actor, save_dir, render, verbose)
+    ret = validate(test_loader, actor, render, verbose)
     lifetime, travel_dist = ret['lifetime_mean'], ret['travel_dist_mean']
 
     logger.info("Test metrics: Mean network lifetime %2.4f, mean travel distance: %2.4f",

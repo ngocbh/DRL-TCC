@@ -17,10 +17,10 @@ dp:
   max_step: 1000
   num_epoch: 1
   num_layers: 1
-  test_size: 1
-  train_size: 1
-  valid_size: 1
-  log_size: 100
+  test_size: 10
+  train_size: 10
+  valid_size: 10
+  log_size: 10
 wp:
   E_mc: 1000000.0
   E_s: 6000
@@ -40,7 +40,7 @@ wp:
   ecr_charge: 2000
   ecr_move: 50
   hop: 12
-  k_bit: 20000000
+  k_bit: 8000000
   lamb: 36.0
   mu: 20
   num_mc: 1

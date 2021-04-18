@@ -208,7 +208,7 @@ class WRSNNetwork():
 
     @property
     def node_failures(self):
-        return np.sum(self.active_status) - 1
+        return self.num_sensors - np.sum(self.active_status) + 1
 
     def reset(self):
         """reset.
