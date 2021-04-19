@@ -193,7 +193,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                     env.close()
                     break
 
-            R = torch.zeros(1, 1)
+            R = torch.zeros(1, 1).to(device)
             if not done:
                 value = critic(mc_state.unsqueeze(0), sn_state.unsqueeze(0))
                 R = value.detach() if value is not None else value
@@ -203,7 +203,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             net_lifetimes.append(env.get_network_lifetime())
             mc_travel_dists.append(env.get_travel_distance())
             
-            gae = torch.zeros(1, 1)
+            gae = torch.zeros(1, 1).to(device)
             policy_losses = torch.zeros(len(rewards))
             value_losses = torch.zeros(len(rewards))
 
