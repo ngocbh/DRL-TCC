@@ -143,6 +143,8 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                           targets=targets.squeeze(), 
                           normalize=True)
 
+            env.mc.cur_energy = env.mc.battery_cap * np.random.random()
+
             mc_state, sn_state = env.reset()
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -152,7 +154,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             rewards = []
             entropies = []
 
-            mask = torch.ones(env.action_space.n)
+            mask = torch.ones(env.action_space.n).to(device)
 
             for _ in range(dp.max_step):
                 mc_state = mc_state.unsqueeze(0)

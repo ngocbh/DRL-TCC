@@ -21,7 +21,7 @@ dp:
   num_epoch: 20
   num_layers: 1
   test_size: 1000
-  train_size: 100000
+  train_size: 10000
   valid_size: 1000
 wp:
   E_mc: 100000.0
