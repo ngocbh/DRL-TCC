@@ -45,7 +45,7 @@ def validate(data_loader, actor, render=False, verbose=False):
         aggregated_ecrs = []
         node_failures = []
 
-        mask = torch.ones(env.action_space.n)
+        mask = torch.ones(env.action_space.n).to(device)
 
         for step in range(dp.max_step):
             if render:
