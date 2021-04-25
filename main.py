@@ -37,8 +37,9 @@ def validate(data_loader, actor, render=False, verbose=False):
                       targets=targets.squeeze(), 
                       normalize=True)
 
-        mc_state, sn_state = env.reset()
+        mc_state, depot_state, sn_state = env.reset()
         mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+        depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
         sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
         rewards = []
@@ -52,10 +53,11 @@ def validate(data_loader, actor, render=False, verbose=False):
                 env.render()
 
             mc_state = mc_state.unsqueeze(0)
+            depot_state = depot_state.unsqueeze(0)
             sn_state = sn_state.unsqueeze(0)
 
             with torch.no_grad():
-                logit = actor(mc_state, sn_state)
+                logit = actor(mc_state, depot_state, sn_state)
 
             logit = logit + mask.log()
             prob = F.softmax(logit, dim=-1)
@@ -64,10 +66,12 @@ def validate(data_loader, actor, render=False, verbose=False):
             
 
             mask[env.last_action] = 1.0
-            (mc_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
+            (mc_state, depot_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
             mask[env.last_action] = 0.0
+            mask[0] = 1.0
 
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+            depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
             if verbose: 
@@ -145,8 +149,9 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
             env.mc.cur_energy = env.mc.battery_cap * np.random.random()
 
-            mc_state, sn_state = env.reset()
+            mc_state, depot_state, sn_state = env.reset()
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+            depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
             values = []
@@ -158,16 +163,17 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
             for _ in range(dp.max_step):
                 mc_state = mc_state.unsqueeze(0)
+                depot_state = depot_state.unsqueeze(0)
                 sn_state = sn_state.unsqueeze(0)
                 if sample_inp is None:
-                    sample_inp = (mc_state, sn_state)
+                    sample_inp = (mc_state, depot_state, sn_state)
 
-                logit = actor(mc_state, sn_state)
+                logit = actor(mc_state, depot_state, sn_state)
                 logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
 
-                value = critic(mc_state, sn_state)
+                value = critic(mc_state, depot_state, sn_state)
 
                 m = torch.distributions.Categorical(prob)
 
@@ -178,10 +184,12 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 entropy = m.entropy()
 
                 mask[env.last_action] = 1.0
-                (mc_state, sn_state), reward, done, info = env.step(action.squeeze().item())
+                (mc_state, depot_state, sn_state), reward, done, info = env.step(action.squeeze().item())
                 mask[env.last_action] = 0.0
+                mask[0] = 1 # always allow MC staying at depot
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
+                depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
                 sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
                 values.append(value) 
@@ -337,12 +345,14 @@ def main(num_sensors=20, num_targets=10, config=None,
         basefile = 'default'
     save_dir = os.path.join(save_dir, basefile)
 
-    actor = MCActor(dp.MC_INPUT_SIZE, 
+    actor = MCActor(dp.MC_INPUT_SIZE,
+                    dp.DEPOT_INPUT_SIZE, 
                     dp.SN_INPUT_SIZE,
                     dp.hidden_size,
                     dp.dropout).to(device)
 
     critic = Critic(dp.MC_INPUT_SIZE,
+                    dp.DEPOT_INPUT_SIZE,
                     dp.SN_INPUT_SIZE,
                     dp.hidden_size).to(device)
 
@@ -360,7 +370,7 @@ def main(num_sensors=20, num_targets=10, config=None,
         valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
         train(actor, critic, train_data, valid_data, save_dir, epoch_start)
 
-    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed + 2)
+    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
     ret = validate(test_loader, actor, render, verbose)
@@ -386,7 +396,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     torch.set_printoptions(sci_mode=False)
-    seed = 42
+    seed = 46
     torch.manual_seed(seed)
     np.set_printoptions(suppress=True)
 

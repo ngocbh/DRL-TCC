@@ -137,10 +137,11 @@ class WrsnParameters(Config):
 
 class DrlParameters(Config):
     __dictpath__ = 'dp'
-    # input sizes (do not tune it)
+    # input sizes (do not change them)
     MC_STATIC_SIZE = 4
     MC_DYNAMIC_SIZE = 3
     MC_INPUT_SIZE = MC_STATIC_SIZE + MC_DYNAMIC_SIZE
+    DEPOT_INPUT_SIZE = 3
     SN_STATIC_SIZE = 4
     SN_DYNAMIC_SIZE = 2
     SN_INPUT_SIZE = SN_STATIC_SIZE + SN_DYNAMIC_SIZE

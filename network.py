@@ -53,10 +53,11 @@ class Sensor(Node):
     """Sensor.
     """
 
-    def __init__(self, position, battery_cap, _id, is_active=True, forwarding=True):
+    def __init__(self, position, battery_cap, _id, is_active=True, forwarding=True, no_targets=0):
         self.battery_cap = battery_cap
         self.cur_energy = battery_cap
         self.ecr = None
+        self.no_targets = no_targets
         super(Sensor, self).__init__(position, _id,
                                      NodeType.SN, is_active, forwarding)
 
@@ -64,7 +65,7 @@ class Sensor(Node):
         return np.array([self.position.x,
                          self.position.y,
                          self.battery_cap,
-                         1, # distinguish with depot
+                         self.no_targets,
                          self.cur_energy,
                          self.ecr],
                         dtype=np.float32)
@@ -128,6 +129,10 @@ class WRSNNetwork():
                     node.adj.append(other)
                     if (other.id, node.id) not in self.edges:
                         self.edges.add((node.id, other.id))
+                        if node.type == NodeType.TG:
+                            other.no_targets += 1
+                        elif other.type == NodeType.TG:
+                            node.no_targets += 1
 
     def __check_health(self):
         changed = False
@@ -313,10 +318,10 @@ class WRSNNetwork():
         return simulated_time
 
     def get_state(self):
-        state = np.zeros((self.num_sensors, 6))
-        for i, sn in enumerate(self.sensors):
-            state[i, :] = sn.get_state()
-        return state
+        state = []
+        for sn in self.sensors:
+            state.append(sn.get_state())
+        return np.array(state)
 
 
 

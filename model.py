@@ -95,12 +95,13 @@ class Pointer(nn.Module):
         return probs
 
 class MCActor(nn.Module):
-    def __init__(self, mc_input_size, sn_input_size,
+    def __init__(self, mc_input_size, depot_input_size, sn_input_size,
                  hidden_size, dropout=0.):
         super(MCActor, self).__init__()
 
         # Define the encoder & decoder models
         self.mc_encoder = Encoder(mc_input_size, hidden_size)
+        self.depot_encoder = Encoder(depot_input_size, hidden_size)
         self.sn_encoder = Encoder(sn_input_size, hidden_size)
         self.pointer = Pointer(hidden_size)
 
@@ -108,7 +109,7 @@ class MCActor(nn.Module):
             if len(p.shape) > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, mc_input, sn_input):
+    def forward(self, mc_input, depot_input, sn_input):
         """forward.
 
         Parameters
@@ -119,16 +120,19 @@ class MCActor(nn.Module):
             sn_input
         """
         mc_hidden = self.mc_encoder(mc_input)
+        depot_hidden = self.depot_encoder(depot_input)
         sn_hidden = self.sn_encoder(sn_input)
 
+        sn_hidden = torch.cat((depot_hidden.unsqueeze(1), sn_hidden), dim=1)
         probs = self.pointer(mc_hidden, sn_hidden.permute(0, 2, 1))
         return probs
 
 class Critic(nn.Module):
-    def __init__(self, mc_input_size, sn_input_size, hidden_size):
+    def __init__(self, mc_input_size, depot_input_size, sn_input_size, hidden_size):
         super(Critic, self).__init__()
 
         self.mc_encoder = Encoder(mc_input_size, hidden_size)
+        self.depot_encoder = Encoder(depot_input_size, hidden_size)
         self.sn_encoder = Encoder(sn_input_size, hidden_size)
 
         self.fc1 = nn.Linear(hidden_size * 2, hidden_size)
@@ -139,10 +143,12 @@ class Critic(nn.Module):
             if len(p.shape) > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, mc_input, sn_input):
+    def forward(self, mc_input, depot_input, sn_input):
         mc_hidden = self.mc_encoder(mc_input)
+        depot_hidden = self.depot_encoder(depot_input)
         sn_hidden = self.sn_encoder(sn_input)
 
+        sn_hidden = torch.cat((depot_hidden.unsqueeze(1), sn_hidden), dim=1)
         hidden = mc_hidden.unsqueeze(1).expand_as(sn_hidden)
         hidden = torch.cat((hidden, sn_hidden), 2)
 

@@ -119,7 +119,7 @@ class WRSNEnv(gym.Env):
         A simulation of Wireless Rechargable Sensor Network
 
     Observation:
-        Type: Tuple(Box(7), Box(num_sensors * 5))
+        Type: Tuple(Box(7), Box(3), Box(num_sensors * 5))
         Box(7): Observation of MC, the first 3 values are dynamic,
                 and 4 next values are static
             (x_coor, y_coor, current_energy, 
@@ -130,6 +130,7 @@ class WRSNEnv(gym.Env):
                               the rest of them is dynamic
             (x_coor, y_coor, battery_capacity, is_sensor, (or_depot) 
             current_energy, energy_consumption_rate)
+        Box(3): Observation of depot
 
     Actions:
         Type: Discrete(num_sensors + 1)
@@ -198,8 +199,13 @@ class WRSNEnv(gym.Env):
                                wp.E_mc,
                                max_ecr],
                               dtype=np.float32)
-        self.high_s = np.tile(high_s_row, (inp.num_sensors+1, 1))
-        self.low_s = np.zeros((inp.num_sensors+1, 6), dtype=np.float32)
+        self.high_s = np.tile(high_s_row, (inp.num_sensors, 1))
+        self.low_s = np.zeros((inp.num_sensors, 6), dtype=np.float32)
+
+        self.high_depot = np.array([inp.W,
+                                    inp.H,
+                                    wp.ecr_charge])
+        self.low_depot = np.zeros(3, dtype=np.float32)
 
         self.high_mc = np.array([inp.W,
                             inp.H,
@@ -213,7 +219,8 @@ class WRSNEnv(gym.Env):
 
         self.action_space = spaces.Discrete(self.net.num_sensors + 1)
         self.observation_space = spaces.Tuple((spaces.Box(self.low_mc, self.high_mc, dtype=np.float32),
-                                               spaces.Box(self.low_s, self.high_s, shape=(inp.num_sensors+1, 6),
+                                               spaces.Box(self.low_depot, self.high_depot, dtype=np.float32),
+                                               spaces.Box(self.low_s, self.high_s, shape=(inp.num_sensors, 6),
                                                           dtype=np.float32)))
 
         self.seed(seed)
@@ -328,15 +335,14 @@ class WRSNEnv(gym.Env):
         sn_state = self.net.get_state()
         depot_state = np.array([self.depot.x,
                                 self.depot.y,
-                                0, 0, 0,
                                 wp.ecr_charge],
                                dtype=np.float32)
-        sn_state = np.vstack([depot_state.reshape(1, -1), sn_state])
         if self.normalize:
             return (normalize(mc_state, self.low_mc, self.high_mc),
+                    normalize(depot_state, self.low_depot, self.high_depot),
                     normalize(sn_state, self.low_s, self.high_s))
         else:
-            return (mc_state, sn_state)
+            return (mc_state, depot_state, sn_state)
 
 
     def get_network_lifetime(self):

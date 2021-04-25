@@ -17,10 +17,10 @@ dp:
   max_step: 1000
   num_epoch: 1
   num_layers: 1
-  test_size: 10
-  train_size: 10
-  valid_size: 10
-  log_size: 10
+  test_size: 1
+  train_size: 1
+  valid_size: 1
+  log_size: 1
 wp:
   E_mc: 1000000.0
   E_s: 6000

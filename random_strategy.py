@@ -12,7 +12,7 @@ from utils import DrlParameters as dp
 from utils import NetworkInput
 from utils import gen_cgrg
 
-def validate(data_loader, save_dir='.', render=False):
+def validate(data_loader, save_dir='.', render=False, verbose=False):
     times = [0]
     net_lifetimes = []
     mc_travel_dists = []
@@ -38,15 +38,27 @@ def validate(data_loader, save_dir='.', render=False):
             action = np.random.choice(np.nonzero(mask)[0])
 
             mask[env.last_action] = 1
-            _, reward, done, _ = env.step(action)
+            (mc_state, depot_state, sn_state), reward, done, _ = env.step(action)
             mask[env.last_action] = 0
+
+            if verbose:
+                print("mc_state\n", mc_state)
+                print("depot_state\n", depot_state)
+                print("sn_state\n", sn_state)
 
             ecrs.append(env.net.aggregated_ecr)
             node_failures.append(env.net.node_failures)
 
             if done:
+                if render:
+                    env.render()
+                    input()
+
                 env.close()
                 break
+                
+            if render:
+                time.sleep(0.7)
 
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
@@ -67,8 +79,7 @@ def validate(data_loader, save_dir='.', render=False):
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
-
     dataset = WRSNDataset(20, 10, 1000, 1)
     data_loader = DataLoader(dataset, 1, False, num_workers=0)
-    validate(data_loader)
+    validate(data_loader, render=True, verbose=True)
 
