@@ -147,8 +147,6 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                           targets=targets.squeeze(), 
                           normalize=True)
 
-            env.mc.cur_energy = env.mc.battery_cap * np.random.random()
-
             mc_state, depot_state, sn_state = env.reset()
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
