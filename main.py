@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from model import MCActor, Critic
 from environment import WRSNEnv
+from vec_env import make_vec_envs
 from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
@@ -115,12 +116,11 @@ def validate(data_loader, actor, render=False, verbose=False):
 
 def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
     logger.info("Begin training phase")
-    train_loader = DataLoader(train_data, 1, True, num_workers=0)
-    valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
+    train_loader = DataLoader(train_data, dp.batch_size, True, num_workers=0)
+    valid_loader = DataLoader(valid_data, dp.batch_size, False, num_workers=0)
 
     actor_optim = optim.Adam(actor.parameters(), dp.actor_lr)
     critic_optim = optim.Adam(critic.parameters(), dp.critic_lr)
-
 
     best_params = None
     best_reward = np.inf
@@ -142,32 +142,27 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
+            batch_size = len(sensors)
 
-            env = WRSNEnv(sensors=sensors.squeeze(), 
-                          targets=targets.squeeze(), 
-                          normalize=True)
+            envs = make_vec_envs(sensors, targets, normalize=True)
 
-            env.mc.cur_energy = env.mc.battery_cap * np.random.random()
-
-            mc_state, depot_state, sn_state = env.reset()
+            mc_state, depot_state, sn_state = envs.reset()
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
+
+            if sample_inp is None:
+                sample_inp = (mc_state, depot_state, sn_state)
 
             values = []
             log_probs = []
             rewards = []
             entropies = []
+            dones = []
 
-            mask = torch.ones(env.action_space.n).to(device)
+            mask = torch.ones(batch_size, envs.action_space.n).to(device)
 
             for _ in range(dp.max_step):
-                mc_state = mc_state.unsqueeze(0)
-                depot_state = depot_state.unsqueeze(0)
-                sn_state = sn_state.unsqueeze(0)
-                if sample_inp is None:
-                    sample_inp = (mc_state, depot_state, sn_state)
-
                 logit = actor(mc_state, depot_state, sn_state)
                 logit = logit + mask.log()
 
@@ -176,17 +171,22 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 value = critic(mc_state, depot_state, sn_state)
 
                 m = torch.distributions.Categorical(prob)
-
+                
                 # Sometimes an issue with Categorical & sampling on GPU; See:
                 # https://github.com/pemami4911/neural-combinatorial-rl-pytorch/issues/5
                 action = m.sample()
                 logp = m.log_prob(action)
                 entropy = m.entropy()
+                last_action = envs.get_attr('last_action')
+                mask[range(batch_size), last_action] = torch.ones(batch_size)
+                
+                envs.step_async(action.detach().numpy())
+                (mc_state, depot_state, sn_state), reward, done, info = envs.step_wait()
 
-                mask[env.last_action] = 1.0
-                (mc_state, depot_state, sn_state), reward, done, info = env.step(action.squeeze().item())
-                mask[env.last_action] = 0.0
-                mask[0] = 1 # always allow MC staying at depot
+                last_action = envs.get_attr('last_action')
+                mask[range(batch_size), last_action] = torch.zeros(batch_size)
+
+                mask[:, 0] = 1 # always allow MC staying at depot
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
@@ -196,14 +196,13 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 rewards.append(reward)
                 log_probs.append(logp)
                 entropies.append(entropy)
+                dones.append(done)
 
-                if done:
-                    env.close()
-                    break
+            envs.close()
 
-            R = torch.zeros(1, 1).to(device)
+            R = torch.zeros(batch_size, 1).to(device)
             if not done:
-                value = critic(mc_state.unsqueeze(0), sn_state.unsqueeze(0))
+                value = critic(mc_state, depot_state, sn_state)
                 R = value.detach() if value is not None else value
 
             values.append(R)

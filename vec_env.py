@@ -20,7 +20,7 @@ def make_env(sensors,
                       targets=targets.squeeze(), 
                       normalize=normalize)
 
-        env.seed(seed + rank)
+        env.seed(seed + rank if seed else seed)
         return env
 
     return _make
@@ -28,12 +28,11 @@ def make_env(sensors,
 
 def make_vec_envs(sensors_batch,
                   targets_batch,
-                  log_dir,
-                  allow_early_resets,
-                  seed=None):
+                  seed=None,
+                  normalize=True):
     envs = []
     for i, (sensors, targets) in enumerate(zip(sensors_batch, targets_batch)):
-        env = make_env(sensors, targets, i, seed, normalize=True)
+        env = make_env(sensors, targets, i, seed, normalize=normalize)
         envs.append(env)
 
     if len(envs) > 1:
@@ -48,7 +47,7 @@ if __name__ == '__main__':
     dataset = WRSNDataset(20, 10, 32, 1)
     data_loader = DataLoader(dataset, 16, False, num_workers=0)
     sensors_batch, targets_batch = next(iter(data_loader))
-    envs = make_vec_envs(sensors_batch, targets_batch, None, True, 1)
+    envs = make_vec_envs(sensors_batch, targets_batch, 1, True)
     mc_state, depot_state, sn_state = envs.reset()
     
     for step in range(1):
