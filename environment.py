@@ -302,8 +302,8 @@ class WRSNEnv(gym.Env):
 
         # if mc is exhausted, cannot improve the network lifetime anymore,
         # fast forward network simulation and stop game
-        if not self.mc.is_active and self.net.is_coverage:
-            reward_t += self.net.t_step(np.inf, charging_sensors=None)
+        # if not self.mc.is_active and self.net.is_coverage:
+        #     reward_t += self.net.t_step(np.inf, charging_sensors=None)
 
         self.state = (self.mc.get_state(), self.net.get_state())
 
@@ -346,7 +346,8 @@ class WRSNEnv(gym.Env):
 
 
     def get_network_lifetime(self):
-        return self.net.network_lifetime + self.net.t_step(np.inf, charging_sensors=None)
+        # return self.net.network_lifetime + self.net.t_step(np.inf, charging_sensors=None)
+        return self.net.network_lifetime
 
     def get_travel_distance(self):
         return self.mc.travel_distance

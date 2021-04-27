@@ -38,6 +38,7 @@ def validate(data_loader, actor, render=False, verbose=False):
                       normalize=True)
 
         mc_state, depot_state, sn_state = env.reset()
+        
         mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
         depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
         sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -68,8 +69,8 @@ def validate(data_loader, actor, render=False, verbose=False):
             mask[env.last_action] = 1.0
             (mc_state, depot_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
             mask[env.last_action] = 0.0
-            mask[0] = 1.0
-
+            # mask[0] = 1.0
+                
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
             sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -77,7 +78,8 @@ def validate(data_loader, actor, render=False, verbose=False):
             if verbose: 
                 print("Step %d: Go to %d (prob: %2.4f) => reward (%2.4f, %2.4f)\n" % 
                       (step, action, prob, reward[0], reward[1]))
-                print("Current network lifetime: %2.4f \n\n" % env.net.network_lifetime)
+                print("Current network lifetime: %2.4f, mc_battery: %2.4f \n\n" % 
+                       (env.net.network_lifetime, env.mc.cur_energy))
 
             rewards.append(reward)
             aggregated_ecrs.append(env.net.aggregated_ecr)
@@ -163,6 +165,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 mc_state = mc_state.unsqueeze(0)
                 depot_state = depot_state.unsqueeze(0)
                 sn_state = sn_state.unsqueeze(0)
+                
                 if sample_inp is None:
                     sample_inp = (mc_state, depot_state, sn_state)
 
@@ -184,7 +187,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 mask[env.last_action] = 1.0
                 (mc_state, depot_state, sn_state), reward, done, info = env.step(action.squeeze().item())
                 mask[env.last_action] = 0.0
-                mask[0] = 1 # always allow MC staying at depot
+                # mask[0] = 1 # always allow MC staying at depot
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
@@ -205,7 +208,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 R = value.detach() if value is not None else value
 
             values.append(R)
-
+            
             net_lifetimes.append(env.get_network_lifetime())
             mc_travel_dists.append(env.get_travel_distance())
             
