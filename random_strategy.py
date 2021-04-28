@@ -12,7 +12,7 @@ from utils import DrlParameters as dp
 from utils import NetworkInput
 from utils import gen_cgrg
 
-def validate(data_loader, save_dir='.', render=False, verbose=False):
+def validate(data_loader, save_dir='.', render=False, verbose=False, max_step=None):
     times = [0]
     net_lifetimes = []
     mc_travel_dists = []
@@ -31,7 +31,8 @@ def validate(data_loader, save_dir='.', render=False, verbose=False):
         ecrs = []
         node_failures = []
 
-        for _ in range(dp.max_step):
+        max_step = max_step or dp.max_step
+        for _ in range(max_step):
             if render:
                 env.render()
                 

@@ -16,7 +16,7 @@ from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
 
 
-def validate(data_loader, actor, render=False, verbose=False):
+def validate(data_loader, actor, render=False, verbose=False, max_step=None):
     actor.eval()
 
     rewards = []
@@ -49,7 +49,8 @@ def validate(data_loader, actor, render=False, verbose=False):
 
         mask = torch.ones(env.action_space.n).to(device)
 
-        for step in range(dp.max_step):
+        max_step = max_step or dp.max_step
+        for step in range(max_step):
             if render:
                 env.render()
 
