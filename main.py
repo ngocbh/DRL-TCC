@@ -14,7 +14,7 @@ from environment import WRSNEnv
 from vec_env import make_vec_envs
 from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
-from utils import logger, gen_cgrg, device, writer
+from utils import logger, gen_cgrg, device, writer, device_str
 
 
 def validate(data_loader, actor, render=False, verbose=False):
@@ -33,7 +33,7 @@ def validate(data_loader, actor, render=False, verbose=False):
         if verbose: print("Test %d" % idx)
 
         sensors, targets = data
-
+        
         env = WRSNEnv(sensors=sensors.squeeze(), 
                       targets=targets.squeeze(), 
                       normalize=True)
@@ -69,7 +69,6 @@ def validate(data_loader, actor, render=False, verbose=False):
             mask[env.last_action] = 1.0
             (mc_state, depot_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
             mask[env.last_action] = 0.0
-            mask[0] = 1.0
 
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
             depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
@@ -117,7 +116,7 @@ def validate(data_loader, actor, render=False, verbose=False):
 def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
     logger.info("Begin training phase")
     train_loader = DataLoader(train_data, dp.batch_size, True, num_workers=0)
-    valid_loader = DataLoader(valid_data, dp.batch_size, False, num_workers=0)
+    valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
 
     actor_optim = optim.Adam(actor.parameters(), dp.actor_lr)
     critic_optim = optim.Adam(critic.parameters(), dp.critic_lr)
@@ -142,7 +141,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
-            batch_size = len(sensors)
+            batch_size, sequence_size, _ = sensors.size()
 
             envs = make_vec_envs(sensors, targets, normalize=True)
 
@@ -186,50 +185,52 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 last_action = envs.get_attr('last_action')
                 mask[range(batch_size), last_action] = torch.zeros(batch_size)
 
-                mask[:, 0] = 1 # always allow MC staying at depot
-
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
                 sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
-                values.append(value) 
+                values.append(value)
                 rewards.append(reward)
                 log_probs.append(logp)
                 entropies.append(entropy)
                 dones.append(done)
+            
+            net_lifetime = envs.env_method('get_network_lifetime')
+            net_lifetimes.extend(net_lifetime)
 
+            mc_travel_dist = envs.env_method('get_travel_distance')
+            mc_travel_dists.extend(mc_travel_dist)
             envs.close()
 
             R = torch.zeros(batch_size, 1).to(device)
-            if not done:
-                value = critic(mc_state, depot_state, sn_state)
-                R = value.detach() if value is not None else value
+
+            not_done = np.logical_not(done)
+            value = critic(mc_state, depot_state, sn_state)
+            R[not_done] = value[not_done].detach()
 
             values.append(R)
-
-            net_lifetimes.append(env.get_network_lifetime())
-            mc_travel_dists.append(env.get_travel_distance())
             
-            gae = torch.zeros(1, 1).to(device)
-            policy_losses = torch.zeros(len(rewards))
-            value_losses = torch.zeros(len(rewards))
+            gae = torch.zeros(batch_size, 1).to(device)
+            policy_losses = torch.zeros(len(rewards), batch_size, 1)
+            value_losses = torch.zeros(len(rewards), batch_size, 1)
 
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
-                reward = rewards[i][0] # using time only
+                reward = rewards[i][:, 0].reshape(-1, 1) # using lifetime only
+                reward = torch.tensor(reward)
                 R = dp.gamma * R + reward
+                
                 advantage = R - values[i]
-
                 value_losses[i] = 0.5 * advantage.pow(2)
 
                 # Generalized Advantage Estimation
                 delta_t = reward + dp.gamma * \
                     values[i + 1] - values[i]
-                gae = gae * dp.gamma * dp.gae_lambda + delta_t
 
-                policy_losses[i] = -log_probs[i] * gae.detach() - \
-                                     dp.entropy_coef * entropies[i]
+                gae = gae * dp.gamma * dp.gae_lambda + delta_t
+                policy_losses[i] = -log_probs[i].view(-1, 1) * gae.detach() - \
+                                     dp.entropy_coef * entropies[i].view(-1, 1)
 
             actor_optim.zero_grad()
             policy_losses.sum().backward()
@@ -245,8 +246,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 pl = torch.mean(policy_losses).item()
                 mean_policy_losses.append(pl)
                 vl = torch.mean(value_losses).item()
-
-                e = torch.mean(torch.Tensor(entropies)).item()
+                e = torch.mean(torch.stack(entropies)).item()                
                 mean_entropies.append(e)
 
 
@@ -394,6 +394,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    
+    logger.info("Running on device: %s", device_str)
     torch.set_printoptions(sci_mode=False)
     seed = 46
     torch.manual_seed(seed)

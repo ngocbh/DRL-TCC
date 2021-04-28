@@ -12,8 +12,6 @@ device = torch.device(device_str)
 
 Point = namedtuple('Point', ['x', 'y', 'z'], defaults=[0, 0, 0])
 
-logger.info("Running on device: %s", device_str)
-
 
 def dist(p1: Point, p2: Point):
     return math.dist(list(p1), list(p2))
