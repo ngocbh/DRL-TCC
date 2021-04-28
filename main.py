@@ -204,7 +204,9 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
             R = torch.zeros(1, 1).to(device)
             if not done:
-                value = critic(mc_state.unsqueeze(0), sn_state.unsqueeze(0))
+                value = critic(mc_state.unsqueeze(0), 
+                               depot_state.unsqueeze(0), 
+                               sn_state.unsqueeze(0))
                 R = value.detach() if value is not None else value
 
             values.append(R)
