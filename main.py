@@ -204,11 +204,9 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
 
             R = torch.zeros(batch_size, 1).to(device)
 
-            not_done = np.logical_not(done)
             value = critic(mc_state, depot_state, sn_state)
-            R[not_done] = value[not_done].detach()
 
-            values.append(R)
+            values.append(value)
             
             gae = torch.zeros(batch_size, 1).to(device)
             policy_losses = torch.zeros(len(rewards), batch_size, 1)
@@ -217,6 +215,8 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
+                values[i+1][dones[i]] = 0.0
+
                 reward = rewards[i][:, 0].reshape(-1, 1) # using lifetime only
                 reward = torch.tensor(reward)
                 R = dp.gamma * R + reward
@@ -231,6 +231,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 gae = gae * dp.gamma * dp.gae_lambda + delta_t
                 policy_losses[i] = -log_probs[i].view(-1, 1) * gae.detach() - \
                                      dp.entropy_coef * entropies[i].view(-1, 1)
+                
 
             actor_optim.zero_grad()
             policy_losses.sum().backward()
@@ -259,7 +260,6 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 mm_entropies = np.mean(mean_entropies[-100:])
                 m_net_lifetime = np.mean(net_lifetimes[-100:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-100:])
-
                 global_step = idx/100 + epoch * len(train_loader)
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)

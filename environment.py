@@ -44,6 +44,7 @@ class MobileCharger():
         self.cur_energy = self.battery_cap
         self.activate()
         self.lifetime = 0
+        self.travel_distance = 0
 
     def deactivate(self):
         """deactivate.
