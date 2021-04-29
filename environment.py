@@ -3,6 +3,7 @@ import time
 import math
 import numpy as np
 import pyglet
+import os
 from gym import spaces, logger
 from gym.utils import seeding
 
@@ -12,6 +13,11 @@ from utils import NetworkInput, Point
 from utils import energy_consumption, dist, normalize, bound
 from network import WRSNNetwork
 
+__location__ = os.path.dirname(os.path.abspath(__file__))
+sink_img = os.path.join(__location__, 'images/sink.png')
+depot_img = os.path.join(__location__, 'images/depot.png')
+sensor_img = os.path.join(__location__, 'images/sensor2.png')
+mc_img = os.path.join(__location__, 'images/mc.png')
 
 class MobileCharger():
     """MobileCharger.
@@ -392,7 +398,7 @@ class WRSNEnv(gym.Env):
 
             x, y, _ = self.net.sink.position
             x, y = x * scale, y * scale
-            sink_obj = rendering.Image('images/sink.png', sink_width, sink_height)
+            sink_obj = rendering.Image(sink_img, sink_width, sink_height)
             sink_obj.add_attr(rendering.Transform(translation=(x, y)))
             self.viewer.add_geom(sink_obj)
             self.objs[0] = sink_obj
@@ -400,7 +406,7 @@ class WRSNEnv(gym.Env):
             x, y, _ = self.depot
             x, y = x * scale, y * scale
             x, y = bound(x, depot_width/2, wp.W*scale), bound(y, depot_height/2, wp.H*scale)
-            depot_obj = rendering.Image('images/depot.png', depot_width, depot_height)
+            depot_obj = rendering.Image(depot_img, depot_width, depot_height)
             depot_obj.add_attr(rendering.Transform(translation=(x, y)))
             self.viewer.add_geom(depot_obj)
 
@@ -409,7 +415,7 @@ class WRSNEnv(gym.Env):
                 x, y, _ = sn.position
                 x, y = x * scale, y * scale
 
-                snb = rendering.Image('images/sensor2.png', sn_width, sn_height)
+                snb = rendering.Image(sensor_img, sn_width, sn_height)
                 snb.add_attr(rendering.Transform(translation=(x, y)))
                 # snb = self.viewer.draw_polyline([(x + l, y + b), (x + l, y + t), 
                                            # (x + r, y + t), (x + r, y + b),
@@ -441,7 +447,7 @@ class WRSNEnv(gym.Env):
                 self.viewer.add_geom(circ)
 
             l, r, t, b = -mc_width / 2, mc_width / 2, mc_height / 2, -mc_height / 2
-            mc = rendering.Image('images/mc.png', mc_width, mc_height)
+            mc = rendering.Image(mc_img, mc_width, mc_height)
             self.mctrans = rendering.Transform()
             mc.add_attr(self.mctrans)
             mc.set_color(*mc_color)
