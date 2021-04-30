@@ -15,9 +15,24 @@ from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
 
-
-def validate(data_loader, actor, render=False, verbose=False, max_step=None):
+def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.eval()
+    mc_state = mc_state.unsqueeze(0)
+    depot_state = depot_state.unsqueeze(0)
+    sn_state = sn_state.unsqueeze(0)
+
+    with torch.no_grad():
+        logit = actor(mc_state, depot_state, sn_state)
+
+    logit = logit + mask.log()
+    prob = F.softmax(logit, dim=-1)
+
+    prob, action = torch.max(prob, 1)  # Greedy selection
+    actor.train()
+    return action.squeeze().item(), prob
+
+def validate(data_loader, decision_maker, args=None,
+             render=False, verbose=False, max_step=None):
 
     rewards = []
     mean_policy_losses = []
@@ -27,6 +42,7 @@ def validate(data_loader, actor, render=False, verbose=False, max_step=None):
     mc_travel_dists = []
     mean_aggregated_ecrs = []
     mean_node_failures = []
+    inf_lifetimes = []
 
     for idx, data in enumerate(data_loader):
         if verbose: print("Test %d" % idx)
@@ -54,21 +70,13 @@ def validate(data_loader, actor, render=False, verbose=False, max_step=None):
             if render:
                 env.render()
 
-            mc_state = mc_state.unsqueeze(0)
-            depot_state = depot_state.unsqueeze(0)
-            sn_state = sn_state.unsqueeze(0)
-
-            with torch.no_grad():
-                logit = actor(mc_state, depot_state, sn_state)
-
-            logit = logit + mask.log()
-            prob = F.softmax(logit, dim=-1)
-
-            prob, action = torch.max(prob, 1)  # Greedy selection
+            if args is not None:
+                action, prob = decision_maker(mc_state, depot_state, sn_state, mask, *args)
+            else:
+                action, prob = decision_maker(mc_state, depot_state, sn_state, mask)
             
-
             mask[env.last_action] = 1.0
-            (mc_state, depot_state, sn_state), reward, done, _ = env.step(action.squeeze().item())
+            (mc_state, depot_state, sn_state), reward, done, _ = env.step(action)
             mask[env.last_action] = 0.0
             # mask[0] = 1.0
                 
@@ -102,8 +110,11 @@ def validate(data_loader, actor, render=False, verbose=False, max_step=None):
         mc_travel_dists.append(env.get_travel_distance())
         mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
         mean_node_failures.append(np.mean(node_failures))
+        inf_lifetimes.append(env.get_network_lifetime() 
+                             if done else np.inf)
 
     ret = {}
+    ret['inf_lifetimes'] = inf_lifetimes
     ret['lifetime_mean'] = np.mean(net_lifetimes)
     ret['lifetime_std'] = np.std(net_lifetimes)
     ret['travel_dist_mean'] = np.mean(mc_travel_dists)
@@ -295,7 +306,7 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
         save_path = os.path.join(epoch_dir, 'critic.pt')
         torch.save(critic.state_dict(), save_path)
 
-        res = validate(valid_loader, actor)
+        res = validate(valid_loader, decision_maker, (actor,))
         m_net_lifetime_valid = res['lifetime_mean'] 
         m_mc_travel_dist_valid = res['travel_dist_mean']
 
@@ -377,7 +388,7 @@ def main(num_sensors=20, num_targets=10, config=None,
     test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
-    ret = validate(test_loader, actor, render, verbose)
+    ret = validate(test_loader, decision_maker, (actor,) , render, verbose)
     lifetime, travel_dist = ret['lifetime_mean'], ret['travel_dist_mean']
 
     logger.info("Test metrics: Mean network lifetime %2.4f, mean travel distance: %2.4f",
