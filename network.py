@@ -6,7 +6,7 @@ import numpy as np
 import enum
 import math
 
-from utils import WrsnParameters as wp
+from utils import WrsnParameters
 from utils import NetworkInput, Point, logger
 from utils import dist, transmission_energy, energy_consumption
 
@@ -21,13 +21,16 @@ class Node():
     """Node.
     """
 
-    def __init__(self, position, _id, _type=NodeType.SN, is_active=True, forwarding=False):
+    def __init__(self, position, _id, _type=NodeType.SN, is_active=True, forwarding=False,
+                 r_c=80, r_s=40):
         self.position = position
         self.id = _id
         self.adj = list()
         self.is_active = is_active
         self.type = _type
         self.forwarding = forwarding
+        self.r_c = r_c
+        self.r_s = r_s
 
     def __repr__(self):
         return str((self.id, self.position))
@@ -41,7 +44,7 @@ class Node():
         if NodeType.TG in type_set and NodeType.SN not in type_set:
             return False
 
-        communication_range = wp.r_s if NodeType.TG in type_set else wp.r_c
+        communication_range = self.r_s if NodeType.TG in type_set else self.r_c
 
         if dist(self.position, other.position) <= communication_range:
             return True
@@ -53,13 +56,13 @@ class Sensor(Node):
     """Sensor.
     """
 
-    def __init__(self, position, battery_cap, _id, is_active=True, forwarding=True, no_targets=0):
+    def __init__(self, position, battery_cap, _id, no_targets=0, **kwargs):
         self.battery_cap = battery_cap
         self.cur_energy = battery_cap
         self.ecr = None
         self.no_targets = no_targets
         super(Sensor, self).__init__(position, _id,
-                                     NodeType.SN, is_active, forwarding)
+                                     NodeType.SN, **kwargs)
 
     def get_state(self):
         return np.array([self.position.x,
@@ -92,15 +95,16 @@ class WRSNNetwork():
     """WRSNNetwork.
     """
 
-    def __init__(self, inp: NetworkInput):
+    def __init__(self, inp: NetworkInput, wp: Config=WrsnParameters):
         self.inp = inp
+        self.wp = wp
         self.num_sensors = inp.num_sensors
         self.num_targets = inp.num_targets
         self.num_charging_points = inp.num_charging_points
         self.num_nodes = self.num_sensors + self.num_targets + 1
 
         self.sink = Node(inp.sink, 0, NodeType.BS)
-        self.sensors = [Sensor(sn, wp.E_s, i)
+        self.sensors = [Sensor(sn, wp.E_s, i, r_c=wp.r_c, r_s=wp.r_s)
                         for i, sn in enumerate(inp.sensors, 1)]
         self.targets = [Node(tg, i, NodeType.TG)
                         for i, tg in enumerate(inp.targets, self.num_sensors+1)]
@@ -137,10 +141,10 @@ class WRSNNetwork():
     def __check_health(self):
         changed = False
         for sn in self.sensors:
-            if not sn.is_active and sn.cur_energy >= wp.p_auto_start_threshold * sn.battery_cap:
+            if not sn.is_active and sn.cur_energy >= self.wp.p_auto_start_threshold * sn.battery_cap:
                 sn.activate()
                 changed = True
-            if sn.is_active and (sn.cur_energy <= wp.p_sleep_threshold * sn.battery_cap or
+            if sn.is_active and (sn.cur_energy <= self.wp.p_sleep_threshold * sn.battery_cap or
                                  (sn.ecr and sn.cur_energy / sn.ecr < 1.0)):
                 sn.deactivate()
                 changed = True
@@ -198,7 +202,7 @@ class WRSNNetwork():
             else:
                 pu = trace[u]
                 d = dist(self.nodes[u].position, self.nodes[pu].position)
-                ecr[u] = energy_consumption(eta[u], 1, d)
+                ecr[u] = energy_consumption(eta[u], 1, d, wp=self.wp)
             self.nodes[u].ecr = ecr[u]
 
         return ecr

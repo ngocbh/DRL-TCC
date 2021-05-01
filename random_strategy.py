@@ -22,7 +22,7 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
                       Point(sn_state[i, 0], sn_state[i, 1]))
         t_mc_i = d_mc_i / mc_state[6]
         d_i_bs = dist(Point(sn_state[i, 0], sn_state[i, 1]),
-                      Point(**wp.sink))
+                      Point(**wp.depot))
 
         if mc_state[2] - mc_state[4] * d_mc_i - \
             (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) \

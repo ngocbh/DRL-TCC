@@ -8,7 +8,7 @@ from gym import spaces, logger
 from gym.utils import seeding
 
 
-from utils import WrsnParameters as wp
+from utils import WrsnParameters
 from utils import NetworkInput, Point
 from utils import energy_consumption, dist, normalize, bound
 from network import WRSNNetwork
@@ -70,7 +70,7 @@ class MobileCharger():
         t2 = d2 / self.velocity
         if t1 == 0:
             return (0, 0, True)
-        e = d2 * wp.ecr_move
+        e = d2 * self.ecr_move
 
         self.travel_distance += d2
         self.cur_position = Point(src.x + t2/t1 * (dest.x - src.x),
@@ -164,7 +164,8 @@ class WRSNEnv(gym.Env):
     }
 
     def __init__(self, inp: NetworkInput=None, sensors=None, targets=None, 
-                 seed=None, normalize=False):
+                 seed=None, wp=WrsnParameters, normalize=False):
+        self.wp = wp
         if inp is None:
             if sensors is None or targets is None:
                 raise ValueError('Invalid input WRSNEnv')
@@ -195,7 +196,7 @@ class WRSNEnv(gym.Env):
         self.action_dest = [inp.depot, *inp.charging_points]
         self.mc = MobileCharger(
             inp.depot, wp.E_mc, wp.v_mc, wp.ecr_move, wp.ecr_charge, wp.mu)
-        self.net = WRSNNetwork(inp)
+        self.net = WRSNNetwork(inp, wp)
         self.normalize = normalize
 
         max_ecr = energy_consumption(inp.num_sensors, 1, wp.r_c)
@@ -293,18 +294,18 @@ class WRSNEnv(gym.Env):
             # if sensor is exhausted, precharge p percent first and reregister sensor to network
             if not sn.is_active:
                 t2_mc = self.mc.charge(sn.cur_energy, 
-                                     sn.battery_cap * wp.p_start_threshold,
+                                     sn.battery_cap * self.wp.p_start_threshold,
                                      sn.ecr,
-                                     wp.mu)
-                t2_net = self.net.t_step(t2_mc, charging_sensors={action: wp.mu})
+                                     self.wp.mu)
+                t2_net = self.net.t_step(t2_mc, charging_sensors={action: self.wp.mu})
                 reward_t += min(t2_mc, t2_net)
 
             # continue charging until getting full battery
             if self.net.is_coverage:
                 t3_mc = self.mc.charge(
-                    sn.cur_energy, sn.battery_cap, sn.ecr, wp.mu)
+                    sn.cur_energy, sn.battery_cap, sn.ecr, self.wp.mu)
 
-                t3_net = self.net.t_step(t3_mc, charging_sensors={action: wp.mu})
+                t3_net = self.net.t_step(t3_mc, charging_sensors={action: self.wp.mu})
                 reward_t += min(t3_mc, t3_net)
 
         # if mc is exhausted, cannot improve the network lifetime anymore,
@@ -342,7 +343,7 @@ class WRSNEnv(gym.Env):
         sn_state = self.net.get_state()
         depot_state = np.array([self.depot.x,
                                 self.depot.y,
-                                wp.ecr_charge],
+                                self.wp.ecr_charge],
                                dtype=np.float32)
         if self.normalize:
             return (normalize(mc_state, self.low_mc, self.high_mc),
@@ -406,7 +407,7 @@ class WRSNEnv(gym.Env):
 
             x, y, _ = self.depot
             x, y = x * scale, y * scale
-            x, y = bound(x, depot_width/2, wp.W*scale), bound(y, depot_height/2, wp.H*scale)
+            x, y = bound(x, depot_width/2, self.wp.W*scale), bound(y, depot_height/2, self.wp.H*scale)
             depot_obj = rendering.Image(depot_img, depot_width, depot_height)
             depot_obj.add_attr(rendering.Transform(translation=(x, y)))
             self.viewer.add_geom(depot_obj)
@@ -462,7 +463,7 @@ class WRSNEnv(gym.Env):
         # transform mc
         mc_state, sn_state = self.state
         x, y = mc_state[0] * scale, mc_state[1] * scale
-        x, y = bound(x, mc_width/2, wp.W*scale-mc_width/2), bound(y, mc_height/2, wp.H*scale-mc_height/2)
+        x, y = bound(x, mc_width/2, self.wp.W*scale-mc_width/2), bound(y, mc_height/2, self.wp.H*scale-mc_height/2)
         self.mctrans.set_translation(x, y)
 
         # transform sns

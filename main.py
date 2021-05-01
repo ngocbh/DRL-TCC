@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput, WRSNDataset, Point
-from utils import Config, DrlParameters as dp, WrsnParameters as wp
+from utils import Config, DrlParameters, WrsnParameters
 from utils import logger, gen_cgrg, device, writer
 
 def decision_maker(mc_state, depot_state, sn_state, mask, actor):
@@ -31,7 +31,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.train()
     return action.squeeze().item(), prob
 
-def validate(data_loader, decision_maker, args=None,
+def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
              render=False, verbose=False, max_step=None, normalize=True):
 
     rewards = []
@@ -51,6 +51,7 @@ def validate(data_loader, decision_maker, args=None,
 
         env = WRSNEnv(sensors=sensors.squeeze(), 
                       targets=targets.squeeze(), 
+                      wp=wp,
                       normalize=normalize)
 
         mc_state, depot_state, sn_state = env.reset()
@@ -127,7 +128,8 @@ def validate(data_loader, decision_maker, args=None,
     return ret
 
 
-def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
+def train(actor, critic, train_data, valid_data, save_dir, 
+          epoch_start_idx=0, wp=WrsnParameters, dp=DrlParameters):
     logger.info("Begin training phase")
     train_loader = DataLoader(train_data, 1, True, num_workers=0)
     valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
@@ -158,7 +160,8 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             sensors, targets = data
 
             env = WRSNEnv(sensors=sensors.squeeze(), 
-                          targets=targets.squeeze(), 
+                          targets=targets.squeeze(),
+                          wp=wp, 
                           normalize=True)
 
             mc_state, depot_state, sn_state = env.reset()
@@ -383,12 +386,12 @@ def main(num_sensors=20, num_targets=10, config=None,
         train_data = WRSNDataset(num_sensors, num_targets, dp.train_size, seed)
         logger.info("Generating validation dataset")
         valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
-        train(actor, critic, train_data, valid_data, save_dir, epoch_start)
+        train(actor, critic, train_data, valid_data, save_dir, epoch_start, wp, dp)
 
     test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
-    ret = validate(test_loader, decision_maker, (actor,) , render, verbose)
+    ret = validate(test_loader, decision_maker, (actor,) , render, verbose, wp)
     lifetime, travel_dist = ret['lifetime_mean'], ret['travel_dist_mean']
 
     logger.info("Test metrics: Mean network lifetime %2.4f, mean travel distance: %2.4f",
