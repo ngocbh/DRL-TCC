@@ -32,7 +32,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     return action.squeeze().item(), prob
 
 def validate(data_loader, decision_maker, args=None,
-             render=False, verbose=False, max_step=None):
+             render=False, verbose=False, max_step=None, normalize=True):
 
     rewards = []
     mean_policy_losses = []
@@ -51,7 +51,7 @@ def validate(data_loader, decision_maker, args=None,
 
         env = WRSNEnv(sensors=sensors.squeeze(), 
                       targets=targets.squeeze(), 
-                      normalize=True)
+                      normalize=normalize)
 
         mc_state, depot_state, sn_state = env.reset()
         

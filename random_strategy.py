@@ -8,13 +8,27 @@ from torch.utils.data import DataLoader
 from environment import WRSNEnv
 
 from utils import WRSNDataset
-from utils import DrlParameters as dp
-from utils import NetworkInput
-from utils import gen_cgrg
+from utils import DrlParameters as dp, WrsnParameters as wp
+from utils import NetworkInput, Point
+from utils import gen_cgrg, dist
 from main import validate
 
 def random_decision_maker(mc_state, depot_state, sn_state, mask):
-    print(torch.nonzero(mask).squeeze())
+    mask_ = mask.clone()
+    n = len(sn_state)
+
+    for i in range(0, n):
+        d_mc_i = dist(Point(mc_state[0], mc_state[1]),
+                      Point(sn_state[i, 0], sn_state[i, 1]))
+        t_mc_i = d_mc_i / mc_state[6]
+        d_i_bs = dist(Point(sn_state[i, 0], sn_state[i, 1]),
+                      Point(**wp.sink))
+
+        if mc_state[2] - mc_state[4] * d_mc_i - \
+            (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) \
+            - mc_state[4] * d_i_bs < 0:
+            mask_[i+1] = 0.0
+
     return np.random.choice(torch.nonzero(mask).squeeze()), 1.0
 
 if __name__ == '__main__':
