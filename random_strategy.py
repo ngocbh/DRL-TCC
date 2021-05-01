@@ -29,7 +29,7 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
             - mc_state[4] * d_i_bs < 0:
             mask_[i+1] = 0.0
 
-    return np.random.choice(torch.nonzero(mask).squeeze()), 1.0
+    return np.random.choice(np.nonzero(mask_.cpu().numpy())[0]), 0.0
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
