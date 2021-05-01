@@ -80,7 +80,6 @@ class MobileCharger():
         self.cur_energy -= e
         if self.cur_energy <= 0:
             self.deactivate()
-
         self.lifetime += t2
 
         return t2, d2, (abs(d1 - d2) < 1e-9) # (running time, travel distance, reach dest or not)
@@ -103,9 +102,8 @@ class MobileCharger():
         # however, to keep it simple, we omitted it
         # as a consequence, sometimes, mc leaves the sensor not being full charged
         n = int((te - ce) / (mu - ecr))
-        alpha = te - ce - n *  (mu - ecr)
+        alpha = (te - ce - n *  (mu - ecr)) / mu
         t = n + alpha
-
         if self.cur_energy > mu * t:
             self.cur_energy -= mu * t 
             return t

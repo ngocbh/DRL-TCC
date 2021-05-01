@@ -23,9 +23,11 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
         t_mc_i = d_mc_i / mc_state[6]
         d_i_bs = dist(Point(sn_state[i, 0], sn_state[i, 1]),
                       Point(**wp.depot))
+        t_charge_i = (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) / \
+                    (mc_state[5] - sn_state[i, 5])
 
         if mc_state[2] - mc_state[4] * d_mc_i - \
-            (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) \
+            (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * (t_mc_i + t_charge_i)) \
             - mc_state[4] * d_i_bs < 0:
             mask_[i+1] = 0.0
 

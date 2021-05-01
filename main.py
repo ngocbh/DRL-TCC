@@ -65,8 +65,8 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
         node_failures = []
 
         mask = torch.ones(env.action_space.n).to(device)
-
-        max_step = max_step or dp.max_step
+        
+        max_step = max_step or DrlParameters.max_step
         for step in range(max_step):
             if render:
                 env.render()
@@ -88,6 +88,8 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
             if verbose: 
                 print("Step %d: Go to %d (prob: %2.4f) => reward (%2.4f, %2.4f)\n" % 
                       (step, action, prob, reward[0], reward[1]))
+                print("Aggregated ecr %2.4f, node failures %2.4f\n" % 
+                       (env.net.aggregated_ecr, env.net.node_failures))
                 print("Current network lifetime: %2.4f, mc_battery: %2.4f \n\n" % 
                        (env.net.network_lifetime, env.mc.cur_energy))
 
@@ -309,7 +311,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
         save_path = os.path.join(epoch_dir, 'critic.pt')
         torch.save(critic.state_dict(), save_path)
 
-        res = validate(valid_loader, decision_maker, (actor,))
+        res = validate(valid_loader, decision_maker, (actor,), wp, max_step=dp.max_step)
         m_net_lifetime_valid = res['lifetime_mean'] 
         m_mc_travel_dist_valid = res['travel_dist_mean']
 
@@ -391,7 +393,7 @@ def main(num_sensors=20, num_targets=10, config=None,
     test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
-    ret = validate(test_loader, decision_maker, (actor,) , render, verbose, wp)
+    ret = validate(test_loader, decision_maker, (actor,) , wp, render, verbose, max_step=dp.max_step)
     lifetime, travel_dist = ret['lifetime_mean'], ret['travel_dist_mean']
 
     logger.info("Test metrics: Mean network lifetime %2.4f, mean travel distance: %2.4f",
