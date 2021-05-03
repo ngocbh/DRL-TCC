@@ -166,7 +166,6 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
-
                 value = critic(mc_state, depot_state, sn_state)
 
                 m = torch.distributions.Categorical(prob)
@@ -176,9 +175,10 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 action = m.sample()
                 logp = m.log_prob(action)
                 entropy = m.entropy()
+
                 last_action = envs.get_attr('last_action')
                 mask[range(batch_size), last_action] = torch.ones(batch_size)
-                
+
                 envs.step_async(action.detach().numpy())
                 (mc_state, depot_state, sn_state), reward, done, info = envs.step_wait()
 
@@ -195,43 +195,46 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 entropies.append(entropy)
                 dones.append(done)
             
-            net_lifetime = envs.env_method('get_network_lifetime')
-            net_lifetimes.extend(net_lifetime)
-
-            mc_travel_dist = envs.env_method('get_travel_distance')
-            mc_travel_dists.extend(mc_travel_dist)
             envs.close()
 
             R = torch.zeros(batch_size, 1).to(device)
 
             value = critic(mc_state, depot_state, sn_state)
+            value[dones[-1]] = 0.0
 
             values.append(value)
             
             gae = torch.zeros(batch_size, 1).to(device)
             policy_losses = torch.zeros(len(rewards), batch_size, 1)
             value_losses = torch.zeros(len(rewards), batch_size, 1)
-
+            total_rewards = torch.zeros(batch_size, 2)
+            num_done_episodes = batch_size - np.sum(dones[-1])
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
                 values[i+1][dones[i]] = 0.0
 
-                reward = rewards[i][:, 0].reshape(-1, 1) # using lifetime only
-                reward = torch.tensor(reward)
-                R = dp.gamma * R + reward
+                reward = torch.tensor(rewards[i])
+                total_rewards += reward
+                num_done_episodes += np.sum(dones[i])
+                lifetime_reward = reward[:, 0].view(-1, 1)
+
+                R = dp.gamma * R + lifetime_reward
                 
                 advantage = R - values[i]
                 value_losses[i] = 0.5 * advantage.pow(2)
 
                 # Generalized Advantage Estimation
-                delta_t = reward + dp.gamma * \
+                delta_t = lifetime_reward + dp.gamma * \
                     values[i + 1] - values[i]
 
                 gae = gae * dp.gamma * dp.gae_lambda + delta_t
                 policy_losses[i] = -log_probs[i].view(-1, 1) * gae.detach() - \
                                      dp.entropy_coef * entropies[i].view(-1, 1)
-                
+            
+            mean_reward = total_rewards.sum(0) / num_done_episodes
+            net_lifetimes.append(mean_reward[0].item())
+            mc_travel_dists.append(mean_reward[1].item())
 
             actor_optim.zero_grad()
             policy_losses.sum().backward()

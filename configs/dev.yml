@@ -14,7 +14,7 @@ dp:
   gamma: 0.9
   hidden_size: 128
   max_grad_norm: 2.0
-  max_step: 1000
+  max_step: 100
   num_epoch: 1
   num_layers: 1
   test_size: 4
