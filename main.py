@@ -177,13 +177,19 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
                 entropy = m.entropy()
 
                 last_action = envs.get_attr('last_action')
+<<<<<<< Updated upstream
                 mask[range(batch_size), last_action] = torch.ones(batch_size)
 
                 envs.step_async(action.detach().numpy())
+=======
+                mask[range(batch_size), last_action] = torch.ones(batch_size).to(device)
+                
+                envs.step_async(action.detach().cpu().numpy())
+>>>>>>> Stashed changes
                 (mc_state, depot_state, sn_state), reward, done, info = envs.step_wait()
 
                 last_action = envs.get_attr('last_action')
-                mask[range(batch_size), last_action] = torch.zeros(batch_size)
+                mask[range(batch_size), last_action] = torch.zeros(batch_size).to(device)
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
@@ -205,21 +211,33 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             values.append(value)
             
             gae = torch.zeros(batch_size, 1).to(device)
+<<<<<<< Updated upstream
             policy_losses = torch.zeros(len(rewards), batch_size, 1)
             value_losses = torch.zeros(len(rewards), batch_size, 1)
             total_rewards = torch.zeros(batch_size, 2)
             num_done_episodes = batch_size - np.sum(dones[-1])
+=======
+            policy_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
+            value_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
+
+>>>>>>> Stashed changes
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
                 values[i+1][dones[i]] = 0.0
 
+<<<<<<< Updated upstream
                 reward = torch.tensor(rewards[i])
                 total_rewards += reward
                 num_done_episodes += np.sum(dones[i])
                 lifetime_reward = reward[:, 0].view(-1, 1)
 
                 R = dp.gamma * R + lifetime_reward
+=======
+                reward = rewards[i][:, 0].reshape(-1, 1) # using lifetime only
+                reward = torch.tensor(reward).to(device)
+                R = dp.gamma * R + reward
+>>>>>>> Stashed changes
                 
                 advantage = R - values[i]
                 value_losses[i] = 0.5 * advantage.pow(2)
