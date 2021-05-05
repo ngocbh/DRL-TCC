@@ -13,7 +13,7 @@ from model import MCActor, Critic
 from environment import WRSNEnv
 from vec_env import make_vec_envs
 from utils import NetworkInput, WRSNDataset, Point
-from utils import Config, DrlParameters as dp, WrsnParameters
+from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer, device_str
 
 def decision_maker(mc_state, depot_state, sn_state, mask, actor):
@@ -32,13 +32,12 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.train()
     return action.squeeze().item(), prob
 
-def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
+def validate(data_loader, decision_maker, args=None, wp=wp,
              render=False, verbose=False, max_step=None, normalize=True,
              on_validation_begin=None, on_validation_end=None, 
              on_episode_begin=None, on_episode_end=None):
     if on_validation_begin is not None:
         on_validation_begin(*args)
-
     rewards = []
     mean_policy_losses = []
     mean_entropies = []
@@ -141,7 +140,7 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
     return ret
 
 def train(actor, critic, train_data, valid_data, save_dir, 
-          epoch_start_idx=0, wp=WrsnParameters, dp=DrlParameters):
+          epoch_start_idx=0, wp=wp, dp=dp):
     logger.info("Begin training phase")
     train_loader = DataLoader(train_data, dp.batch_size, True, num_workers=0)
     valid_loader = DataLoader(valid_data, 1, False, num_workers=0)

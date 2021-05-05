@@ -1,6 +1,7 @@
 import gym
 import time
 import math
+import os
 import numpy as np
 import pyglet
 from gym import spaces, logger
