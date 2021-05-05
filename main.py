@@ -32,7 +32,11 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     return action.squeeze().item(), prob
 
 def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
-             render=False, verbose=False, max_step=None, normalize=True):
+             render=False, verbose=False, max_step=None, normalize=True,
+             on_validation_begin=None, on_validation_end=None, 
+             on_episode_begin=None, on_episode_end=None):
+    if on_validation_begin is not None:
+        on_validation_begin(*args)
 
     rewards = []
     mean_policy_losses = []
@@ -48,6 +52,9 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
         if verbose: print("Test %d" % idx)
 
         sensors, targets = data
+        
+        if on_episode_begin is not None:
+            on_episode_begin(*args)
 
         env = WRSNEnv(sensors=sensors.squeeze(), 
                       targets=targets.squeeze(), 
@@ -65,7 +72,7 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
         node_failures = []
 
         mask = torch.ones(env.action_space.n).to(device)
-        
+
         max_step = max_step or DrlParameters.max_step
         for step in range(max_step):
             if render:
@@ -108,7 +115,9 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
             if render:
                 time.sleep(0.5)
                 # pass
-
+        if on_episode_end is not None:
+            on_episode_end(*args)
+            
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
         mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
@@ -126,7 +135,8 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
     ret['aggregated_ecr_std'] = np.std(mean_aggregated_ecrs)
     ret['node_failures_mean'] = np.mean(mean_node_failures)
     ret['node_failures_std'] = np.std(mean_node_failures)
-
+    if on_validation_end is not None:
+        on_validation_end(*args)
     return ret
 
 
