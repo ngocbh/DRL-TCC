@@ -211,33 +211,21 @@ def train(actor, critic, train_data, valid_data, save_dir, epoch_start_idx=0):
             values.append(value)
             
             gae = torch.zeros(batch_size, 1).to(device)
-<<<<<<< Updated upstream
-            policy_losses = torch.zeros(len(rewards), batch_size, 1)
-            value_losses = torch.zeros(len(rewards), batch_size, 1)
-            total_rewards = torch.zeros(batch_size, 2)
-            num_done_episodes = batch_size - np.sum(dones[-1])
-=======
             policy_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
             value_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
-
->>>>>>> Stashed changes
+            total_rewards = torch.zeros(batch_size, 2)
+            num_done_episodes = batch_size - np.sum(dones[-1])
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
                 values[i+1][dones[i]] = 0.0
 
-<<<<<<< Updated upstream
-                reward = torch.tensor(rewards[i])
+                reward = torch.tensor(rewards[i]).to(device)
                 total_rewards += reward
                 num_done_episodes += np.sum(dones[i])
                 lifetime_reward = reward[:, 0].view(-1, 1)
 
                 R = dp.gamma * R + lifetime_reward
-=======
-                reward = rewards[i][:, 0].reshape(-1, 1) # using lifetime only
-                reward = torch.tensor(reward).to(device)
-                R = dp.gamma * R + reward
->>>>>>> Stashed changes
                 
                 advantage = R - values[i]
                 value_losses[i] = 0.5 * advantage.pow(2)
