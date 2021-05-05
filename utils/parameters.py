@@ -114,7 +114,7 @@ class WrsnParameters(Config):
     # energy recharging rate of MC at depot (J/s)
     ecr_charge = 2000 
     # capacity of mc (J)
-    E_mc = 1 * 1e6
+    E_mc = 1 * 1e5
     # Charging rate (W)
     mu = 20
 
