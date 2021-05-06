@@ -117,6 +117,9 @@ class MobileCharger():
         self.cur_energy = self.battery_cap
         return t
 
+    def idle(self):
+        pass
+
 
 class WRSNEnv(gym.Env):
     """WRSNEnv.
@@ -262,21 +265,30 @@ class WRSNEnv(gym.Env):
         if not self.is_connected:
             return None, (0, 0), True, {}
 
+        idle = (self.last_action == action)
+
         reward_t, reward_d = 0.0, 0.0
 
-        # 2 phases: move to dest and charge (or recharge)
-        # phase 1: move MC to dest
-        t1_mc, d_mc, reach_dest = self.mc.move(self.action_dest[action])
-        # simultaneously simulate the network running in t_1 seconds
-        t1_net = self.net.t_step(t1_mc, charging_sensors=None)
+        if idle:
+            self.mc.idle()
+            t1_net = self.net.estimate_trans_time()
+            t1_net_1 = self.net.t_step(t1_net, charging_sensors=None)
+            reward_t = min(t1_net, t1_net_1) 
+            # self.last_action = -1
+        else:
+            # 2 phases: move to dest and charge (or recharge)
+            # phase 1: move MC to dest
+            t1_mc, d_mc, reach_dest = self.mc.move(self.action_dest[action])
+            # simultaneously simulate the network running in t_1 seconds
+            t1_net = self.net.t_step(t1_mc, charging_sensors=None)
 
-        if reach_dest:
-            self.last_action = action
-        
-        reward_t += min(t1_mc, t1_net)
-        reward_d += d_mc
+            if reach_dest:
+                self.last_action = action
+            
+            reward_t += min(t1_mc, t1_net)
+            reward_d += d_mc
 
-        if not self.net.is_coverage:
+        if idle or not self.net.is_coverage:
             pass
         # phase 2: charge or recharge
         elif action == 0:
@@ -289,7 +301,7 @@ class WRSNEnv(gym.Env):
             # charge sensor ith
             sn = self.net.nodes[action]
 
-            # if sensor is exhausted, precharge p percent first and reregister sensor to network
+            # if sensor is exhausted, precharge p percent first and reregister it to network
             if not sn.is_active:
                 t2_mc = self.mc.charge(sn.cur_energy, 
                                      sn.battery_cap * self.wp.p_start_threshold,
