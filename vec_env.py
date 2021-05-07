@@ -35,10 +35,10 @@ def make_vec_envs(sensors_batch,
         env = make_env(sensors, targets, i, seed, normalize=normalize)
         envs.append(env)
 
-    if len(envs) > 1:
-        envs = SubprocVecEnv(envs)
-    else:
-        envs = DummyVecEnv(envs)
+    # if len(envs) > 1:
+    envs = SubprocVecEnv(envs)
+    # else:
+    #     envs = DummyVecEnv(envs)
     
     return envs
 

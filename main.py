@@ -168,6 +168,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
+
             batch_size, sequence_size, _ = sensors.size()
 
             envs = make_vec_envs(sensors, targets, normalize=True)
@@ -212,6 +213,8 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 last_action = envs.get_attr('last_action')
                 mask[range(batch_size), last_action] = torch.zeros(batch_size).to(device)
 
+                # print(_, action, reward, done)
+
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
                 sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -235,11 +238,14 @@ def train(actor, critic, train_data, valid_data, save_dir,
             policy_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
             value_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
             total_rewards = torch.zeros(batch_size, 2)
-            num_done_episodes = batch_size - np.sum(dones[-1])
+            num_done_episodes = np.sum(np.logical_not(dones[-1]))
+
             R = values[-1]
 
             for i in reversed(range(len(rewards))):
                 values[i+1][dones[i]] = 0.0
+                R[dones[i]] = 0.0
+                gae[dones[i]] = 0.0
 
                 reward = torch.tensor(rewards[i]).to(device)
                 total_rewards += reward
@@ -256,7 +262,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                     values[i + 1] - values[i]
 
                 gae = gae * dp.gamma * dp.gae_lambda + delta_t
-                policy_losses[i] = -log_probs[i].view(-1, 1) * gae.detach() - \
+                policy_losses[i] = - gae.detach() * log_probs[i].view(-1, 1) - \
                                      dp.entropy_coef * entropies[i].view(-1, 1)
             
             mean_reward = total_rewards.sum(0) / num_done_episodes
@@ -399,7 +405,7 @@ def main(num_sensors=20, num_targets=10, config=None,
         valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
         train(actor, critic, train_data, valid_data, save_dir, epoch_start, wp, dp)
 
-    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
+    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed + 2)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
     ret = validate(test_loader, decision_maker, (actor,) , wp, render, verbose, max_step=dp.max_step)
@@ -421,6 +427,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_start', default=0, type=int)
     parser.add_argument('--render', '-r', action='store_true')
     parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('--seed', '-s', default=123, type=int)
 
     args = parser.parse_args()
 
@@ -429,6 +436,7 @@ if __name__ == '__main__':
     torch.set_printoptions(sci_mode=False)
     seed = 46
     torch.manual_seed(seed)
+    torch.autograd.set_detect_anomaly(True)
     np.set_printoptions(suppress=True)
 
     main(**vars(args))

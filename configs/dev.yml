@@ -8,18 +8,18 @@ dp:
   __dictpath__: dp
   __doc__: null
   actor_lr: 0.0005
-  batch_size: 4
+  batch_size: 1
   critic_lr: 0.0005
   dropout: 0.2
   gamma: 0.9
   hidden_size: 128
   max_grad_norm: 2.0
   max_step: 100
-  num_epoch: 1
+  num_epoch: 100
   num_layers: 1
-  test_size: 4
-  train_size: 4
-  valid_size: 4
+  test_size: 1
+  train_size: 1
+  valid_size: 1
   log_size: 1
 wp:
   E_mc: 100000.0
