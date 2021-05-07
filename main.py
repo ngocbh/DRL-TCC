@@ -237,7 +237,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             gae = torch.zeros(batch_size, 1).to(device)
             policy_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
             value_losses = torch.zeros(len(rewards), batch_size, 1).to(device)
-            total_rewards = torch.zeros(batch_size, 2)
+            total_rewards = torch.zeros(batch_size, 2).to(device)
             num_done_episodes = np.sum(np.logical_not(dones[-1]))
 
             R = values[-1]
