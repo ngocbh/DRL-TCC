@@ -25,7 +25,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     with torch.no_grad():
         logit = actor(mc_state, depot_state, sn_state)
 
-    # logit = logit + mask.log()
+    logit = logit + mask.log()
     prob = F.softmax(logit, dim=-1)
 
     prob, action = torch.max(prob, 1)  # Greedy selection
@@ -189,10 +189,10 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
             mask = torch.ones(batch_size, envs.action_space.n).to(device)
             last_action = np.zeros(batch_size)
-
+            
             for _ in range(dp.max_step):
                 logit = actor(mc_state, depot_state, sn_state)
-                # logit = logit + mask.log()
+                logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
                 value = critic(mc_state, depot_state, sn_state)
@@ -204,9 +204,15 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 action = m.sample()
                 logp = m.log_prob(action)
                 entropy = m.entropy()
+
+                cpu_action = action.detach().cpu().numpy()
                 
-                envs.step_async(action.detach().cpu().numpy())
+                envs.step_async(cpu_action)
                 (mc_state, depot_state, sn_state), reward, done, info = envs.step_wait()
+
+                mask[range(batch_size), last_action] = 1.0
+                mask[range(batch_size), cpu_action] = 0.0
+                last_action = cpu_action
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
