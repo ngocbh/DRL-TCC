@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput, WRSNDataset, Point
-from utils import Config, DrlParameters, WrsnParameters
+from utils import Config, DrlParameters as dp, WrsnParameters as wp
 from utils import logger, gen_cgrg, device, writer
 
 def decision_maker(mc_state, depot_state, sn_state, mask, actor):
@@ -31,7 +31,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.train()
     return action.squeeze().item(), prob
 
-def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
+def validate(data_loader, decision_maker, args=None, wp=wp,
              render=False, verbose=False, max_step=None, normalize=True,
              on_validation_begin=None, on_validation_end=None, 
              on_episode_begin=None, on_episode_end=None):
@@ -141,7 +141,7 @@ def validate(data_loader, decision_maker, args=None, wp=WrsnParameters,
 
 
 def train(actor, critic, train_data, valid_data, save_dir, 
-          epoch_start_idx=0, wp=WrsnParameters, dp=DrlParameters):
+          epoch_start_idx=0, wp=wp, dp=dp):
     logger.info("Begin training phase")
     train_loader = DataLoader(train_data, 1, True, num_workers=0)
     valid_loader = DataLoader(valid_data, 1, False, num_workers=0)
@@ -246,7 +246,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             value_losses = torch.zeros(len(rewards))
 
             R = values[-1]
-
+            
             for i in reversed(range(len(rewards))):
                 reward = rewards[i][0] # using time only
                 R = dp.gamma * R + reward
@@ -400,7 +400,7 @@ def main(num_sensors=20, num_targets=10, config=None,
         valid_data = WRSNDataset(num_sensors, num_targets, dp.valid_size, seed + 1)
         train(actor, critic, train_data, valid_data, save_dir, epoch_start, wp, dp)
 
-    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed)
+    test_data = WRSNDataset(num_sensors, num_targets, dp.test_size, seed + 2)
     test_loader = DataLoader(test_data, 1, False, num_workers=0)
 
     ret = validate(test_loader, decision_maker, (actor,) , wp, render, verbose, max_step=dp.max_step)
@@ -422,6 +422,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_start', default=0, type=int)
     parser.add_argument('--render', '-r', action='store_true')
     parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('--seed', '-s', default=123, type=int)
 
     args = parser.parse_args()
 
