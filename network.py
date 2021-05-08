@@ -250,6 +250,18 @@ class WRSNNetwork():
             if not self.__check_health():
                 break
 
+    def estimate_trans_time(self):
+        self.run_estimation()
+        cur_energy = np.array([sn.cur_energy for sn in self.sensors])
+        battery_cap = np.array([sn.battery_cap for sn in self.sensors])
+        ecr = np.array([sn.ecr for sn in self.sensors])
+        requested = (cur_energy <= battery_cap * self.wp.p_request_threshold)
+        threshold = np.zeros_like(cur_energy)
+        threshold = self.wp.p_sleep_threshold * battery_cap * requested + \
+            self.wp.p_request_threshold * battery_cap * np.logical_not(requested) 
+        trans_time = (cur_energy - threshold) / (ecr + 1e-8)
+        return np.min(trans_time[trans_time > 1.0])
+
     def t_step(self, t: int, charging_sensors=None):
         """ simulate network running for t seconds.
 

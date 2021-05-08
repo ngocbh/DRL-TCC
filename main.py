@@ -25,7 +25,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     with torch.no_grad():
         logit = actor(mc_state, depot_state, sn_state)
 
-    logit = logit + mask.log()
+    # logit = logit + mask.log()
     prob = F.softmax(logit, dim=-1)
 
     prob, action = torch.max(prob, 1)  # Greedy selection
@@ -188,10 +188,11 @@ def train(actor, critic, train_data, valid_data, save_dir,
             dones = []
 
             mask = torch.ones(batch_size, envs.action_space.n).to(device)
+            last_action = np.zeros(batch_size)
 
             for _ in range(dp.max_step):
                 logit = actor(mc_state, depot_state, sn_state)
-                logit = logit + mask.log()
+                # logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
                 value = critic(mc_state, depot_state, sn_state)
@@ -203,15 +204,9 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 action = m.sample()
                 logp = m.log_prob(action)
                 entropy = m.entropy()
-
-                last_action = envs.get_attr('last_action')
-                mask[range(batch_size), last_action] = torch.ones(batch_size).to(device)
                 
                 envs.step_async(action.detach().cpu().numpy())
                 (mc_state, depot_state, sn_state), reward, done, info = envs.step_wait()
-
-                last_action = envs.get_attr('last_action')
-                mask[range(batch_size), last_action] = torch.zeros(batch_size).to(device)
 
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
@@ -294,7 +289,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 mm_entropies = np.mean(mean_entropies[-dp.log_size:])
                 m_net_lifetime = np.mean(net_lifetimes[-dp.log_size:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
-                global_step = idx/dp.log_size + epoch * len(train_loader)
+                global_step = idx/dp.log_size + epoch * len(train_loader) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)

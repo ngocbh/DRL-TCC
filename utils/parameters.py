@@ -107,6 +107,7 @@ class WrsnParameters(Config):
     p_start_threshold = 0.2
     p_auto_start_threshold = 0.2
     p_sleep_threshold = 0.0
+    p_request_threshold = 0.4
     # velocity of mc (m/s)
     v_mc = 5 
     # energy consumption per unit distance of MC (J/m)
