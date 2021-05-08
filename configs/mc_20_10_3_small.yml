@@ -16,7 +16,7 @@ dp:
   gae_lambda: 0.9
   gamma: 0.9
   hidden_size: 128
-  log_size: 100
+  log_size: 1
   max_grad_norm: 2.0
   max_step: 1000
   num_epoch: 20

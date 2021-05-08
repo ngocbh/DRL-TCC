@@ -213,8 +213,6 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 last_action = envs.get_attr('last_action')
                 mask[range(batch_size), last_action] = torch.zeros(batch_size).to(device)
 
-                # print(_, action, reward, done)
-
                 mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
                 depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
                 sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
@@ -264,7 +262,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 gae = gae * dp.gamma * dp.gae_lambda + delta_t
                 policy_losses[i] = - gae.detach() * log_probs[i].view(-1, 1) - \
                                      dp.entropy_coef * entropies[i].view(-1, 1)
-            
+
             mean_reward = total_rewards.sum(0) / num_done_episodes
             net_lifetimes.append(mean_reward[0].item())
             mc_travel_dists.append(mean_reward[1].item())
@@ -292,11 +290,11 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 times.append(end-start)
                 start = end
 
-                mm_policy_loss = np.mean(mean_policy_losses[-100:])
-                mm_entropies = np.mean(mean_entropies[-100:])
-                m_net_lifetime = np.mean(net_lifetimes[-100:])
-                m_mc_travel_dist = np.mean(mc_travel_dists[-100:])
-                global_step = idx/100 + epoch * len(train_loader)
+                mm_policy_loss = np.mean(mean_policy_losses[-dp.log_size:])
+                mm_entropies = np.mean(mean_entropies[-dp.log_size:])
+                m_net_lifetime = np.mean(net_lifetimes[-dp.log_size:])
+                m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
+                global_step = idx/dp.log_size + epoch * len(train_loader)
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
@@ -355,10 +353,10 @@ def train(actor, critic, train_data, valid_data, save_dir,
         msg = 'Epoch %d: mean_policy_losses: %2.3f, ' + \
             'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
             'mean_entropies: %2.4f, m_net_lifetime_valid: %2.4f, ' + \
-            'took: %2.4fs, (%2.4f / 100 batches)\n'
+            'took: %2.4fs, (%2.4f / %d batches)\n'
         logger.info(msg % (epoch, mm_policy_loss, m_net_lifetime, 
                            m_mc_travel_dist, mm_entropies, m_net_lifetime_valid,
-                           time.time() - epoch_start, np.mean(times)))
+                           time.time() - epoch_start, np.mean(times), dp.log_size))
 
     writer.add_graph(actor, sample_inp)
 
