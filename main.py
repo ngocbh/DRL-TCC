@@ -286,12 +286,12 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 times.append(end-start)
                 start = end
 
-                mm_policy_loss = np.mean(mean_policy_losses[-100:])
-                mm_entropies = np.mean(mean_entropies[-100:])
-                m_net_lifetime = np.mean(net_lifetimes[-100:])
-                m_mc_travel_dist = np.mean(mc_travel_dists[-100:])
+                mm_policy_loss = np.mean(mean_policy_losses[-dp.log_size:])
+                mm_entropies = np.mean(mean_entropies[-dp.log_size:])
+                m_net_lifetime = np.mean(net_lifetimes[-dp.log_size:])
+                m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
 
-                global_step = idx/100 + epoch * len(train_loader)
+                global_step = (idx + epoch * len(train_loader)) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
