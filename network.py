@@ -197,7 +197,7 @@ class WRSNNetwork():
 
         ecr = np.zeros(self.num_sensors + 1)
         for u in range(1, self.num_sensors + 1):
-            if trace[u] == -1:
+            if trace[u] == -1 or self.nodes[u].no_targets == 0:
                 ecr[u] = 0
             else:
                 pu = trace[u]
@@ -289,7 +289,7 @@ class WRSNNetwork():
             # self.run_estimation()
             # do not consider lifetime of base station
             active = np.logical_and(self.active_status, 
-                                    self.routing_path[:self.num_sensors + 1] != -1)
+                                    self.estimated_ecr > 1e-9)
 
             min_lifetime = np.min(
                 self.estimated_lifetime[active], initial=np.inf)

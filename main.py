@@ -106,9 +106,8 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
 
             if done:
                 if verbose: print("End episode! Press any button to continue...")
-                if render:
-                    env.render()
-                    input()
+                if render: env.render()
+                if render or verbose: input()
                 env.close()
                 break
 
