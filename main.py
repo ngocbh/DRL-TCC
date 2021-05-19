@@ -303,11 +303,13 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
                 writer.add_scalar('batch/mc_travel_dist', m_mc_travel_dist, global_step)
+                writer.add_scalar('batch/mm_rewards', mm_rewards, global_step)
+                writer.add_scalar('batch/m_steps', m_steps, global_step)
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
                     'mean_rewards: %2.4f, mean_steps: %2.4f, ' + \
-                    'mean_entropies: %2.4f, mean_rewards took: %2.4fs'
+                    'mean_entropies: %2.4f, took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
                                    m_net_lifetime, m_mc_travel_dist,
                                    mm_rewards, m_steps,

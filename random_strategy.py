@@ -17,10 +17,10 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
     mask_ = mask.clone()
     n = len(sn_state)
 
-    print(mc_state)
-    print(depot_state)
-    print(sn_state)
-    print(mask)
+    # print(mc_state)
+    # print(depot_state)
+    # print(sn_state)
+    # print(mask)
     for i in range(0, n):
         d_mc_i = dist(Point(mc_state[0], mc_state[1]),
                       Point(sn_state[i, 0], sn_state[i, 1]))
@@ -35,15 +35,16 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
             - mc_state[4] * d_i_bs < 0:
             mask_[i+1] = 0.0
 
-    print(np.nonzero(mask_.cpu().numpy())[0])
+    # print(np.nonzero(mask_.cpu().numpy())[0])
     return np.random.choice(np.nonzero(mask_.cpu().numpy())[0]), 0.0
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
     torch.set_printoptions(sci_mode=False)
-    dataset = WRSNDataset(20, 10, 1000, 1)
+    dataset = WRSNDataset(20, 10, 100, 1)
     data_loader = DataLoader(dataset, 1, False, num_workers=0)
-    wp.from_file('./configs/mc_20_10_4_small.yml')
-    # wp.from_file('./configs/mc_20_10_2_small.yml')
-    validate(data_loader, random_decision_maker, wp=wp, render=True, verbose=True, normalize=False)
+    # wp.from_file('./configs/mc_20_10_4_small.yml')
+    wp.from_file('./configs/mc_20_10_2_small.yml')
+    ret = validate(data_loader, random_decision_maker, wp=wp, render=False, verbose=False, normalize=False)
+    print(ret)
 
