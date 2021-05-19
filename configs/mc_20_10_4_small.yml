@@ -12,7 +12,7 @@ dp:
   batch_size: 1
   critic_lr: 0.0005
   dropout: 0.2
-  entropy_coef: 0
+  entropy_coef: 0.01
   gae_lambda: 0.9
   gamma: 0.9
   hidden_size: 128

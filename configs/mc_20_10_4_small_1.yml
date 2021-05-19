@@ -26,6 +26,7 @@ dp:
   valid_size: 1000
 wp:
   E_mc: 100000.0
+  E_mc_init: 10000.0
   E_s: 6000
   H: 200
   W: 200

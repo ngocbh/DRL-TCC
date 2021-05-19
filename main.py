@@ -166,6 +166,8 @@ def train(actor, critic, train_data, valid_data, save_dir,
         times = [0]
         net_lifetimes = []
         mc_travel_dists = []
+        steps = []
+        mean_rewards = []
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
@@ -187,7 +189,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
             mask = torch.ones(env.action_space.n).to(device)
 
-            for _ in range(dp.max_step):
+            for step in range(dp.max_step):
                 mc_state = mc_state.unsqueeze(0)
                 depot_state = depot_state.unsqueeze(0)
                 sn_state = sn_state.unsqueeze(0)
@@ -227,6 +229,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 if done:
                     env.close()
                     break
+            steps.append(step)
 
             R = torch.zeros(1, 1).to(device)
             if not done:
@@ -279,6 +282,9 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 e = torch.mean(torch.Tensor(entropies)).item()
                 mean_entropies.append(e)
 
+                r = np.mean([reward[0] for reward in rewards])
+                mean_rewards.append(r)
+
 
             if (idx + 1) % dp.log_size == 0:
                 end = time.time()
@@ -289,6 +295,8 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 mm_entropies = np.mean(mean_entropies[-dp.log_size:])
                 m_net_lifetime = np.mean(net_lifetimes[-dp.log_size:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
+                mm_rewards = np.mean(mean_rewards[-dp.log_size:])
+                m_steps = np.mean(steps[-dp.log_size:])
 
                 global_step = (idx + epoch * len(train_loader)) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
@@ -298,9 +306,11 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
-                    'mean_entropies: %2.4f, took: %2.4fs'
+                    'mean_rewards: %2.4f, mean_steps: %2.4f, ' + \
+                    'mean_entropies: %2.4f, mean_rewards took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
                                    m_net_lifetime, m_mc_travel_dist,
+                                   mm_rewards, m_steps,
                                    mm_entropies, times[-1]))
 
         mm_policy_loss = np.mean(mean_policy_losses)
