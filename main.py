@@ -4,6 +4,7 @@ import os
 import torch
 import time
 import numpy as np
+from datetime import datetime
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -13,7 +14,7 @@ from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
-from utils import logger, gen_cgrg, device, writer
+from utils import logger, gen_cgrg, device, writer, make_logger, device_str
 
 def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.eval()
@@ -436,6 +437,17 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', default=123, type=int)
 
     args = parser.parse_args()
+
+    if args.config is not None:
+        basefile = os.path.splitext(os.path.basename(args.config))[0]
+    else:
+        basefile = 'default'
+    now = datetime.now()
+    dt_str = now.strftime("%d_%m_%Y_%H_%M_%S")
+    log_dir = "logs/{}_{}".format(basefile, dt_str)
+    logger, writer = make_logger(log_dir)
+
+    logger.info("Running on device: %s", device_str)
 
     torch.set_printoptions(sci_mode=False)
     seed = 46
