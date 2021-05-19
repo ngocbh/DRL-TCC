@@ -19,14 +19,14 @@ dp:
   log_size: 100
   max_grad_norm: 2.0
   max_step: 1000
-  num_epoch: 20
+  num_epoch: 7
   num_layers: 1
   test_size: 1000
   train_size: 10000
   valid_size: 1000
 wp:
-  E_mc: 500.0
-  E_s: 10
+  E_mc: 100000.0
+  E_s: 6000
   H: 200
   W: 200
   __dictpath__: wp
@@ -40,12 +40,12 @@ wp:
   e_elec: 5.0000000000000004e-08
   e_fs: 1.0e-11
   e_mp: 1.2999999999999998e-15
-  ecr_charge: 4
-  ecr_move: 0.04
+  ecr_charge: 2000
+  ecr_move: 50
   hop: 12
-  k_bit: 20000
+  k_bit: 8000000
   lamb: 36.0
-  mu: 0.04
+  mu: 20
   num_mc: 1
   p_auto_start_threshold: 0.2
   p_sleep_threshold: 0.0

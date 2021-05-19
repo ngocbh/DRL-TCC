@@ -73,7 +73,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
 
         mask = torch.ones(env.action_space.n).to(device)
 
-        max_step = max_step or DrlParameters.max_step
+        max_step = max_step or dp.max_step
         for step in range(max_step):
             if render:
                 env.render()
