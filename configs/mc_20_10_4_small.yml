@@ -19,7 +19,7 @@ dp:
   log_size: 100
   max_grad_norm: 2.0
   max_step: 1000
-  num_epoch: 7
+  num_epoch: 20
   num_layers: 1
   test_size: 1000
   train_size: 10000
