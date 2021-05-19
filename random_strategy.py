@@ -21,13 +21,12 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
     print(depot_state)
     print(sn_state)
     print(mask)
-
     for i in range(0, n):
         d_mc_i = dist(Point(mc_state[0], mc_state[1]),
                       Point(sn_state[i, 0], sn_state[i, 1]))
         t_mc_i = d_mc_i / mc_state[6]
         d_i_bs = dist(Point(sn_state[i, 0], sn_state[i, 1]),
-                      Point(**wp.depot))
+                      Point(depot_state[0], depot_state[1]))
         t_charge_i = (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) / \
                     (mc_state[5] - sn_state[i, 5])
 
@@ -35,6 +34,8 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
             (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * (t_mc_i + t_charge_i)) \
             - mc_state[4] * d_i_bs < 0:
             mask_[i+1] = 0.0
+
+    print(np.nonzero(mask_.cpu().numpy())[0])
     return np.random.choice(np.nonzero(mask_.cpu().numpy())[0]), 0.0
 
 if __name__ == '__main__':
@@ -43,5 +44,6 @@ if __name__ == '__main__':
     dataset = WRSNDataset(20, 10, 1000, 1)
     data_loader = DataLoader(dataset, 1, False, num_workers=0)
     wp.from_file('./configs/mc_20_10_4_small.yml')
-    validate(data_loader, random_decision_maker, wp=wp, render=True, verbose=True)
+    # wp.from_file('./configs/mc_20_10_2_small.yml')
+    validate(data_loader, random_decision_maker, wp=wp, render=True, verbose=True, normalize=False)
 

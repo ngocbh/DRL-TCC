@@ -12,7 +12,7 @@ dp:
   batch_size: 1
   critic_lr: 0.0005
   dropout: 0.2
-  entropy_coef: 0.01
+  entropy_coef: 0
   gae_lambda: 0.9
   gamma: 0.9
   hidden_size: 128
@@ -25,7 +25,8 @@ dp:
   train_size: 10000
   valid_size: 1000
 wp:
-  E_mc: 500.0
+  E_mc: 500
+  E_mc_init: 50
   E_s: 10
   H: 200
   W: 200
@@ -48,9 +49,9 @@ wp:
   mu: 0.04
   num_mc: 1
   p_auto_start_threshold: 0.2
+  p_request_threshold: 0.4
   p_sleep_threshold: 0.0
   p_start_threshold: 0.2
-  p_request_threshold: 0.4
   r_c: 80
   r_s: 40
   sink:

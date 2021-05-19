@@ -191,18 +191,21 @@ class WRSNNetwork():
 
         for i in range(1, self.num_sensors+1):
             u = i
+            if self.nodes[u].no_targets == 0:
+                continue
             while u > 0 and trace[u] != -1:
                 u = trace[u]
                 eta[u] += 1
 
         ecr = np.zeros(self.num_sensors + 1)
         for u in range(1, self.num_sensors + 1):
-            if trace[u] == -1 or self.nodes[u].no_targets == 0:
+            if trace[u] == -1:
                 ecr[u] = 0
             else:
                 pu = trace[u]
                 d = dist(self.nodes[u].position, self.nodes[pu].position)
-                ecr[u] = energy_consumption(eta[u], 1, d, wp=self.wp)
+                y = (self.nodes[u].no_targets != 0)
+                ecr[u] = energy_consumption(eta[u], y, d, wp=self.wp)
             self.nodes[u].ecr = ecr[u]
 
         return ecr
@@ -259,7 +262,9 @@ class WRSNNetwork():
         threshold = np.zeros_like(cur_energy)
         threshold = self.wp.p_sleep_threshold * battery_cap * requested + \
             self.wp.p_request_threshold * battery_cap * np.logical_not(requested) 
-        trans_time = (cur_energy - threshold) / ecr
+        trans_time = np.zeros_like(cur_energy)
+        active = (ecr > 0)
+        trans_time[active] = (cur_energy - threshold)[active] / ecr[active]
         return np.min(trans_time[trans_time > 1.0])
 
     def t_step(self, t: int, charging_sensors=None):
