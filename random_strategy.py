@@ -22,7 +22,7 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
                       Point(sn_state[i, 0], sn_state[i, 1]))
         t_mc_i = d_mc_i / mc_state[6]
         d_i_bs = dist(Point(sn_state[i, 0], sn_state[i, 1]),
-                      Point(**wp.depot))
+                      Point(depot_state[0], depot_state[1]))
         t_charge_i = (sn_state[i, 2] - sn_state[i, 4] + sn_state[i, 5] * t_mc_i) / \
                     (mc_state[5] - sn_state[i, 5])
 
@@ -35,7 +35,11 @@ def random_decision_maker(mc_state, depot_state, sn_state, mask):
 
 if __name__ == '__main__':
     np.set_printoptions(suppress=True)
-    dataset = WRSNDataset(20, 10, 1000, 1)
+    torch.set_printoptions(sci_mode=False)
+    dataset = WRSNDataset(20, 10, 100, 1)
     data_loader = DataLoader(dataset, 1, False, num_workers=0)
-    validate(data_loader, random_decision_maker, render=True, verbose=True)
+    # wp.from_file('./configs/mc_20_10_4_small.yml')
+    wp.from_file('./configs/mc_20_10_2_small.yml')
+    ret = validate(data_loader, random_decision_maker, wp=wp, render=False, verbose=False, normalize=False)
+    print(ret)
 

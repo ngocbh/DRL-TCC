@@ -4,6 +4,7 @@ import os
 import torch
 import time
 import numpy as np
+from datetime import datetime
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -13,7 +14,7 @@ from model import MCActor, Critic
 from environment import WRSNEnv
 from utils import NetworkInput, WRSNDataset, Point
 from utils import Config, DrlParameters as dp, WrsnParameters as wp
-from utils import logger, gen_cgrg, device, writer
+from utils import logger, gen_cgrg, device, writer, make_logger, device_str
 
 def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     actor.eval()
@@ -73,7 +74,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
 
         mask = torch.ones(env.action_space.n).to(device)
 
-        max_step = max_step or DrlParameters.max_step
+        max_step = max_step or dp.max_step
         for step in range(max_step):
             if render:
                 env.render()
@@ -106,9 +107,8 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
 
             if done:
                 if verbose: print("End episode! Press any button to continue...")
-                if render:
-                    env.render()
-                    input()
+                if render: env.render()
+                if render or verbose: input()
                 env.close()
                 break
 
@@ -164,9 +164,12 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
         mean_policy_losses = []
         mean_entropies = []
+        mean_aggregated_ecrs = []
         times = [0]
         net_lifetimes = []
         mc_travel_dists = []
+        steps = []
+        mean_rewards = []
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
@@ -185,10 +188,11 @@ def train(actor, critic, train_data, valid_data, save_dir,
             log_probs = []
             rewards = []
             entropies = []
+            aggregated_ecrs = []
 
             mask = torch.ones(env.action_space.n).to(device)
 
-            for _ in range(dp.max_step):
+            for step in range(dp.max_step):
                 mc_state = mc_state.unsqueeze(0)
                 depot_state = depot_state.unsqueeze(0)
                 sn_state = sn_state.unsqueeze(0)
@@ -224,10 +228,12 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 rewards.append(reward)
                 log_probs.append(logp)
                 entropies.append(entropy)
+                aggregated_ecrs.append(env.net.aggregated_ecr)
 
                 if done:
                     env.close()
                     break
+            steps.append(step)
 
             R = torch.zeros(1, 1).to(device)
             if not done:
@@ -240,6 +246,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             
             net_lifetimes.append(env.get_network_lifetime())
             mc_travel_dists.append(env.get_travel_distance())
+            mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
             
             gae = torch.zeros(1, 1).to(device)
             policy_losses = torch.zeros(len(rewards))
@@ -280,6 +287,9 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 e = torch.mean(torch.Tensor(entropies)).item()
                 mean_entropies.append(e)
 
+                r = np.mean([reward[0] for reward in rewards])
+                mean_rewards.append(r)
+
 
             if (idx + 1) % dp.log_size == 0:
                 end = time.time()
@@ -290,18 +300,25 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 mm_entropies = np.mean(mean_entropies[-dp.log_size:])
                 m_net_lifetime = np.mean(net_lifetimes[-dp.log_size:])
                 m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
+                mm_rewards = np.mean(mean_rewards[-dp.log_size:])
+                m_steps = np.mean(steps[-dp.log_size:])
+                mm_aggregated_ecr = np.mean(mean_aggregated_ecrs[-dp.log_size:])
 
                 global_step = (idx + epoch * len(train_loader)) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
                 writer.add_scalar('batch/mc_travel_dist', m_mc_travel_dist, global_step)
+                writer.add_scalar('batch/mm_rewards', mm_rewards, global_step)
+                writer.add_scalar('batch/m_steps', m_steps, global_step)
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
+                    'mean_rewards: %2.4f, mean_steps: %2.4f, mean_ecr: %2.4f ' + \
                     'mean_entropies: %2.4f, took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
                                    m_net_lifetime, m_mc_travel_dist,
+                                   mm_rewards, m_steps, mm_aggregated_ecr,
                                    mm_entropies, times[-1]))
 
         mm_policy_loss = np.mean(mean_policy_losses)
@@ -425,6 +442,18 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', default=123, type=int)
 
     args = parser.parse_args()
+
+    if args.config is not None:
+        basefile = os.path.splitext(os.path.basename(args.config))[0]
+    else:
+        basefile = 'default'
+    now = datetime.now()
+    dt_str = now.strftime("%d_%m_%Y_%H_%M_%S")
+    log_dir = "logs/{}_{}".format(basefile, dt_str)
+    logger, writer = make_logger(log_dir)
+
+    logger.info("Running on device: %s", device_str)
+    logger.info("Log dir: %s", log_dir)
 
     torch.set_printoptions(sci_mode=False)
     seed = 46
