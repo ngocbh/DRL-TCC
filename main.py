@@ -164,6 +164,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
         mean_policy_losses = []
         mean_entropies = []
+        mean_aggregated_ecrs = []
         times = [0]
         net_lifetimes = []
         mc_travel_dists = []
@@ -187,6 +188,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             log_probs = []
             rewards = []
             entropies = []
+            aggregated_ecrs = []
 
             mask = torch.ones(env.action_space.n).to(device)
 
@@ -226,6 +228,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 rewards.append(reward)
                 log_probs.append(logp)
                 entropies.append(entropy)
+                aggregated_ecrs.append(env.net.aggregated_ecr)
 
                 if done:
                     env.close()
@@ -243,6 +246,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             
             net_lifetimes.append(env.get_network_lifetime())
             mc_travel_dists.append(env.get_travel_distance())
+            mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
             
             gae = torch.zeros(1, 1).to(device)
             policy_losses = torch.zeros(len(rewards))
@@ -298,6 +302,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
                 mm_rewards = np.mean(mean_rewards[-dp.log_size:])
                 m_steps = np.mean(steps[-dp.log_size:])
+                mm_aggregated_ecr = np.mean(mean_aggregated_ecrs[-dp.log_size:])
 
                 global_step = (idx + epoch * len(train_loader)) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
@@ -309,11 +314,11 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
-                    'mean_rewards: %2.4f, mean_steps: %2.4f, ' + \
+                    'mean_rewards: %2.4f, mean_steps: %2.4f, mean_ecr: %2.4f ' + \
                     'mean_entropies: %2.4f, took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
                                    m_net_lifetime, m_mc_travel_dist,
-                                   mm_rewards, m_steps,
+                                   mm_rewards, m_steps, mm_aggregated_ecr,
                                    mm_entropies, times[-1]))
 
         mm_policy_loss = np.mean(mean_policy_losses)
