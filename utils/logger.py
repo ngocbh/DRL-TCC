@@ -2,8 +2,8 @@ import logging
 import os
 from torch.utils.tensorboard import SummaryWriter
 
-logger=None
-writer=None
+logger = None
+writer = None
 
 def make_logger(log_dir):
     global logger, writer
