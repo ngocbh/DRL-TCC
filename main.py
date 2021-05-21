@@ -448,6 +448,7 @@ if __name__ == '__main__':
     logger, writer = make_logger(log_dir)
 
     logger.info("Running on device: %s", device_str)
+    logger.info("Saving logs at: %s", log_dir)
 
     torch.set_printoptions(sci_mode=False)
     seed = 46
