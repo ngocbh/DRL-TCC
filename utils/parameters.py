@@ -9,6 +9,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class Config():
     __dictpath__ = ''
 
+    def __init__(self, d=None):
+        d = d or {}
+        for key, value in d.items():
+            self_value = getattr(self, key)
+            type_value = type(self_value) if type(self_value) is not type else self_value
+            if isinstance(self_value, Config) or issubclass(type_value, Config):
+                value = self_value.from_dict(value)
+            setattr(self, key, value)
+
     @classmethod
     def from_dict(cls, d):
         d = d or {}
