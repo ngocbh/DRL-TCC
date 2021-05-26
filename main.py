@@ -71,6 +71,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
         rewards = []
         aggregated_ecrs = []
         node_failures = []
+        steps = []
 
         mask = torch.ones(env.action_space.n).to(device)
 
@@ -115,9 +116,11 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
             if render:
                 time.sleep(0.5)
                 # pass
+
         if on_episode_end is not None:
             on_episode_end(*args)
             
+        steps.append(step)
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
         mean_aggregated_ecrs.append(np.mean(aggregated_ecrs))
@@ -135,6 +138,12 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
     ret['aggregated_ecr_std'] = np.std(mean_aggregated_ecrs)
     ret['node_failures_mean'] = np.mean(mean_node_failures)
     ret['node_failures_std'] = np.std(mean_node_failures)
+    ret['step_mean'] = np.mean(steps)
+    ret['reward_mean'] = np.mean([r[0] for r in rewards])
+    ret['k_bit'] = wp.k_bit
+    ret['E_s'] = wp.E_s
+    ret['E_mc'] = wp.E_mc
+
     if on_validation_end is not None:
         on_validation_end(*args)
     return ret
