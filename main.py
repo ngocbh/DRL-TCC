@@ -48,6 +48,8 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
     mean_aggregated_ecrs = []
     mean_node_failures = []
     inf_lifetimes = []
+    steps = []
+
 
     for idx, data in enumerate(data_loader):
         if verbose: print("Test %d" % idx)
@@ -68,10 +70,8 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
         depot_state = torch.from_numpy(depot_state).to(dtype=torch.float32, device=device)
         sn_state = torch.from_numpy(sn_state).to(dtype=torch.float32, device=device)
 
-        rewards = []
         aggregated_ecrs = []
         node_failures = []
-        steps = []
 
         mask = torch.ones(env.action_space.n).to(device)
 
