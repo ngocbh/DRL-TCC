@@ -23,7 +23,7 @@ class MobileCharger():
     """MobileCharger.
     """
 
-    def __init__(self, position, battery_cap, velocity, ecr_move, ecr_charge, mu):
+    def __init__(self, position, battery_cap, velocity, ecr_move, ecr_charge, mu, cur_energy=None):
         self.depot = position
         self.cur_position = position
         self.battery_cap = battery_cap
@@ -31,7 +31,7 @@ class MobileCharger():
         self.ecr_move = ecr_move
         self.ecr_charge = ecr_charge
         self.mu = mu
-        self.cur_energy = battery_cap
+        self.cur_energy = cur_energy or battery_cap
         self.is_active = True
         self.lifetime = 0
         self.travel_distance = 0
@@ -196,7 +196,7 @@ class WRSNEnv(gym.Env):
         self.charging_points = inp.charging_points
         self.action_dest = [inp.depot, *inp.charging_points]
         self.mc = MobileCharger(
-            inp.depot, wp.E_mc, wp.v_mc, wp.ecr_move, wp.ecr_charge, wp.mu)
+            inp.depot, wp.E_mc, wp.v_mc, wp.ecr_move, wp.ecr_charge, wp.mu, wp.E_mc_init)
         self.net = WRSNNetwork(inp, wp)
         self.normalize = normalize
 
@@ -204,7 +204,7 @@ class WRSNEnv(gym.Env):
         high_s_row = np.array([inp.W,
                                inp.H,
                                wp.E_mc,
-                               1,
+                               inp.num_targets,
                                wp.E_mc,
                                max_ecr],
                               dtype=np.float32)
