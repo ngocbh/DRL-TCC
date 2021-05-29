@@ -3,8 +3,18 @@ import argparse
 import yaml
 import torch
 from yaml import Loader
+import collections.abc
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def recursive_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
 
 class Config():
     __dictpath__ = ''
@@ -88,10 +98,10 @@ class Config():
                 config = yaml.load(file, Loader=Loader)
 
         if mode == 'merge_file':
-            my_config.update(config)
+            recursive_update(my_config, config)
             config = my_config
         else:
-            config.update(my_config)
+            recursive_update(config, my_config)
 
         with open(filepath, mode='w') as file:
             yaml.dump(config, file)
