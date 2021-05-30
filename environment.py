@@ -200,7 +200,7 @@ class WRSNEnv(gym.Env):
         self.net = WRSNNetwork(inp, wp)
         self.normalize = normalize
 
-        max_ecr = energy_consumption(inp.num_sensors, 1, wp.r_c)
+        max_ecr = energy_consumption(inp.num_sensors, 1, wp.r_c, wp=wp)
         high_s_row = np.array([inp.W,
                                inp.H,
                                wp.E_mc,
