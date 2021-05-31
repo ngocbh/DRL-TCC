@@ -466,7 +466,8 @@ if __name__ == '__main__':
 
     torch.set_printoptions(sci_mode=False)
     seed = 46
-    torch.manual_seed(seed)
+    torch.manual_seed(args.seed + 12)
+    np.random.seed(args.seed + 11)
     np.set_printoptions(suppress=True)
 
     main(**vars(args))
