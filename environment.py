@@ -286,7 +286,7 @@ class WRSNEnv(gym.Env):
                 self.last_action = action
             
             reward_t += min(t1_mc, t1_net)
-            reward_d += d_mc
+            reward_d += min(t1_mc, t1_net)
 
         if idle or not self.net.is_coverage:
             pass

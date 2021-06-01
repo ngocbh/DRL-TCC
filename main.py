@@ -25,7 +25,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     with torch.no_grad():
         logit = actor(mc_state, depot_state, sn_state)
 
-    logit = logit + mask.log()
+    # logit = logit + mask.log()
     prob = F.softmax(logit, dim=-1)
 
     prob, action = torch.max(prob, 1)  # Greedy selection
@@ -210,7 +210,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                     sample_inp = (mc_state, depot_state, sn_state)
 
                 logit = actor(mc_state, depot_state, sn_state)
-                logit = logit + mask.log()
+                # logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
 
@@ -264,7 +264,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             R = values[-1]
             
             for i in reversed(range(len(rewards))):
-                reward = rewards[i][0] # using time only
+                reward = rewards[i][0] - rewards[i][1] 
                 R = dp.gamma * R + reward
                 advantage = R - values[i]
 
