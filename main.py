@@ -25,7 +25,7 @@ def decision_maker(mc_state, depot_state, sn_state, mask, actor):
     with torch.no_grad():
         logit = actor(mc_state, depot_state, sn_state)
 
-    logit = logit + mask.log()
+    # logit = logit + mask.log()
     prob = F.softmax(logit, dim=-1)
 
     prob, action = torch.max(prob, 1)  # Greedy selection
@@ -179,6 +179,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
         mc_travel_dists = []
         steps = []
         mean_rewards = []
+        total_rewards = []
 
         for idx, data in enumerate(train_loader):
             sensors, targets = data
@@ -187,6 +188,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                           targets=targets.squeeze(),
                           wp=wp, 
                           normalize=True)
+            num_sensors = env.net.num_sensors
 
             mc_state, depot_state, sn_state = env.reset()
             mc_state = torch.from_numpy(mc_state).to(dtype=torch.float32, device=device)
@@ -198,6 +200,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
             rewards = []
             entropies = []
             aggregated_ecrs = []
+            actions = []
 
             mask = torch.ones(env.action_space.n).to(device)
 
@@ -210,7 +213,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                     sample_inp = (mc_state, depot_state, sn_state)
 
                 logit = actor(mc_state, depot_state, sn_state)
-                logit = logit + mask.log()
+                # logit = logit + mask.log()
 
                 prob = F.softmax(logit, dim=-1)
 
@@ -238,6 +241,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 log_probs.append(logp)
                 entropies.append(entropy)
                 aggregated_ecrs.append(env.net.aggregated_ecr)
+                actions.append(action.squeeze().item())
 
                 if done:
                     env.close()
@@ -260,11 +264,13 @@ def train(actor, critic, train_data, valid_data, save_dir,
             gae = torch.zeros(1, 1).to(device)
             policy_losses = torch.zeros(len(rewards))
             value_losses = torch.zeros(len(rewards))
+            total_reward = 0
 
             R = values[-1]
             
             for i in reversed(range(len(rewards))):
-                reward = rewards[i][0] - rewards[i][1]
+                reward = rewards[i][0] - rewards[i][1] 
+                total_reward += reward
                 R = dp.gamma * R + reward
                 advantage = R - values[i]
 
@@ -298,6 +304,7 @@ def train(actor, critic, train_data, valid_data, save_dir,
 
                 r = np.mean([reward[0] for reward in rewards])
                 mean_rewards.append(r)
+                total_rewards.append(total_reward)
 
 
             if (idx + 1) % dp.log_size == 0:
@@ -311,23 +318,38 @@ def train(actor, critic, train_data, valid_data, save_dir,
                 m_mc_travel_dist = np.mean(mc_travel_dists[-dp.log_size:])
                 mm_rewards = np.mean(mean_rewards[-dp.log_size:])
                 m_steps = np.mean(steps[-dp.log_size:])
+                m_total_rewards = np.mean(total_rewards[-dp.log_size:])
                 mm_aggregated_ecr = np.mean(mean_aggregated_ecrs[-dp.log_size:])
+                bins = np.array(list(range(num_sensors+2)))
+                values = np.array(actions).astype(float).reshape(-1)
+                counts, limits = np.histogram(values, bins=bins)
+                sum_sq = values.dot(values)
 
                 global_step = (idx + epoch * len(train_loader)) / dp.log_size
                 writer.add_scalar('batch/policy_loss', mm_policy_loss, global_step)
                 writer.add_scalar('batch/entropy', mm_entropies, global_step)
                 writer.add_scalar('batch/net_lifetime', m_net_lifetime, global_step)
                 writer.add_scalar('batch/mc_travel_dist', m_mc_travel_dist, global_step)
-                writer.add_scalar('batch/mm_rewards', mm_rewards, global_step)
-                writer.add_scalar('batch/m_steps', m_steps, global_step)
+                writer.add_scalar('batch/reward_per_step', mm_rewards, global_step)
+                writer.add_scalar('batch/num_steps', m_steps, global_step)
+                writer.add_scalar('batch/total_rewards', m_total_rewards, global_step)
+                writer.add_histogram_raw('batch/action_hist', 
+                                         min=values.min(),
+                                         max=values.max(),
+                                         num=len(values),
+                                         sum=values.sum(),
+                                         sum_squares=sum_sq,
+                                         bucket_limits=limits[1:].tolist(),
+                                         bucket_counts=counts.tolist(),
+                                         global_step=global_step)
 
                 msg = '\tBatch %d/%d, mean_policy_losses: %2.3f, ' + \
                     'mean_net_lifetime: %2.4f, mean_mc_travel_dist: %2.4f, ' + \
-                    'mean_rewards: %2.4f, mean_steps: %2.4f, mean_ecr: %2.4f ' + \
+                    'mean_rewards: %2.4f, total_rewards: %2.4f, mean_steps: %2.4f, mean_ecr: %2.4f ' + \
                     'mean_entropies: %2.4f, took: %2.4fs'
                 logger.info(msg % (idx, len(train_loader), mm_policy_loss, 
                                    m_net_lifetime, m_mc_travel_dist,
-                                   mm_rewards, m_steps, mm_aggregated_ecr,
+                                   mm_rewards, m_total_rewards, m_steps, mm_aggregated_ecr,
                                    mm_entropies, times[-1]))
 
         mm_policy_loss = np.mean(mean_policy_losses)

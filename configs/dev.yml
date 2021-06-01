@@ -18,7 +18,7 @@ dp:
   num_epoch: 1
   num_layers: 1
   test_size: 1
-  train_size: 1
+  train_size: 10
   valid_size: 1
   log_size: 1
 wp:
