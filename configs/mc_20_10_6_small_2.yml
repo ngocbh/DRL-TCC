@@ -44,7 +44,7 @@ wp:
   ecr_charge: 2
   ecr_move: 0.04
   hop: 12
-  k_bit: 20000
+  k_bit: 24000
   lamb: 36.0
   mu: 0.04
   num_mc: 1
@@ -58,7 +58,7 @@ wp:
     x: 100.0
     y: 100.0
     z: 0
-  v_mc: 1
+  v_mc: 5
 
 
 
