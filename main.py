@@ -142,6 +142,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
     ret['node_failures_std'] = np.std(mean_node_failures)
     ret['step_mean'] = np.mean(steps)
     ret['reward_mean'] = np.mean(rewards)
+    ret['reward_std'] = np.std(rewards)
     ret['k_bit'] = wp.k_bit
     ret['E_s'] = wp.E_s
     ret['E_mc'] = wp.E_mc
