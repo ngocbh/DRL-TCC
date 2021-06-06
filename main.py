@@ -72,6 +72,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
 
         aggregated_ecrs = []
         node_failures = []
+        total_reward = 0
 
         mask = torch.ones(env.action_space.n).to(device)
 
@@ -102,7 +103,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
                 print("Current network lifetime: %2.4f, mc_battery: %2.4f \n\n" % 
                        (env.net.network_lifetime, env.mc.cur_energy))
 
-            rewards.append(reward)
+            total_reward += reward[0] - reward[1]
             aggregated_ecrs.append(env.net.aggregated_ecr)
             node_failures.append(env.net.node_failures)
 
@@ -120,6 +121,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
         if on_episode_end is not None:
             on_episode_end(*args)
             
+        rewards.append(total_reward)
         steps.append(step)
         net_lifetimes.append(env.get_network_lifetime())
         mc_travel_dists.append(env.get_travel_distance())
@@ -139,7 +141,7 @@ def validate(data_loader, decision_maker, args=None, wp=wp,
     ret['node_failures_mean'] = np.mean(mean_node_failures)
     ret['node_failures_std'] = np.std(mean_node_failures)
     ret['step_mean'] = np.mean(steps)
-    ret['reward_mean'] = np.mean([r[0] for r in rewards])
+    ret['reward_mean'] = np.mean(rewards)
     ret['k_bit'] = wp.k_bit
     ret['E_s'] = wp.E_s
     ret['E_mc'] = wp.E_mc
