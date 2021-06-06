@@ -8,11 +8,11 @@ dp:
   SN_STATIC_SIZE: 4
   __dictpath__: dp
   __doc__: null
-  actor_lr: 0.00005
+  actor_lr: 0.0001
   batch_size: 1
-  critic_lr: 0.00005
+  critic_lr: 0.0001
   dropout: 0.2
-  entropy_coef: 0.05
+  entropy_coef: 0.01
   gae_lambda: 0.9
   gamma: 0.95
   hidden_size: 128
@@ -44,7 +44,7 @@ wp:
   ecr_charge: 2
   ecr_move: 0.04
   hop: 12
-  k_bit: 24000
+  k_bit: 20000
   lamb: 36.0
   mu: 0.04
   num_mc: 1
