@@ -1,0 +1,68 @@
+dp:
+  DEPOT_INPUT_SIZE: 3
+  MC_DYNAMIC_SIZE: 3
+  MC_INPUT_SIZE: 7
+  MC_STATIC_SIZE: 4
+  SN_DYNAMIC_SIZE: 2
+  SN_INPUT_SIZE: 6
+  SN_STATIC_SIZE: 4
+  __dictpath__: dp
+  __doc__: null
+  actor_lr: 0.00005
+  batch_size: 1
+  critic_lr: 0.00005
+  dropout: 0.2
+  entropy_coef: 0.02
+  gae_lambda: 0.9
+  gamma: 0.95
+  hidden_size: 128
+  log_size: 100
+  max_grad_norm: 2.0
+  max_step: 1000
+  num_epoch: 20
+  num_layers: 1
+  test_size: 1000
+  train_size: 10000
+  valid_size: 1000
+wp:
+  E_mc: 500
+  E_mc_init: 50
+  E_s: 10
+  H: 200
+  W: 200
+  __dictpath__: wp
+  __doc__: null
+  beta: 30.0
+  depot:
+    x: 0
+    y: 0
+    z: 0
+  e_da: 5.0e-12
+  e_elec: 5.0000000000000004e-08
+  e_fs: 1.0e-11
+  e_mp: 1.2999999999999998e-15
+  ecr_charge: 2
+  ecr_move: 0.04
+  hop: 12
+  k_bit: 24000
+  lamb: 36.0
+  mu: 0.04
+  num_mc: 1
+  p_auto_start_threshold: 0.2
+  p_request_threshold: 0.4
+  p_sleep_threshold: 0.0
+  p_start_threshold: 0.2
+  r_c: 80
+  r_s: 40
+  sink:
+    x: 100.0
+    y: 100.0
+    z: 0
+  v_mc: 5
+
+
+
+
+
+
+
