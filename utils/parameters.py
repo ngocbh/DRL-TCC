@@ -3,11 +3,30 @@ import argparse
 import yaml
 import torch
 from yaml import Loader
+import collections.abc
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+def recursive_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
 class Config():
     __dictpath__ = ''
+
+    def __init__(self, d=None):
+        d = d or {}
+        for key, value in d.items():
+            self_value = getattr(self, key)
+            type_value = type(self_value) if type(self_value) is not type else self_value
+            if isinstance(self_value, Config) or issubclass(type_value, Config):
+                value = self_value.from_dict(value)
+            setattr(self, key, value)
 
     @classmethod
     def from_dict(cls, d):
@@ -79,10 +98,10 @@ class Config():
                 config = yaml.load(file, Loader=Loader)
 
         if mode == 'merge_file':
-            my_config.update(config)
+            recursive_update(my_config, config)
             config = my_config
         else:
-            config.update(my_config)
+            recursive_update(config, my_config)
 
         with open(filepath, mode='w') as file:
             yaml.dump(config, file)
@@ -101,22 +120,24 @@ class WrsnParameters(Config):
     # sensing range (m)
     r_s = 40 
     # capacity of sensor (J)
-    E_s = 6000
+    E_s = 10
     # When charging a exhausted sensor,
     # allow it joining network when it has at least p percent of battery charged
     p_start_threshold = 0.2
     p_auto_start_threshold = 0.2
     p_sleep_threshold = 0.0
+    p_request_threshold = 0.4
     # velocity of mc (m/s)
     v_mc = 5 
     # energy consumption per unit distance of MC (J/m)
-    ecr_move = 50 
+    ecr_move = 0.04 
     # energy recharging rate of MC at depot (J/s)
-    ecr_charge = 2000 
+    ecr_charge = 4 
     # capacity of mc (J)
-    E_mc = 1 * 1e6
+    E_mc = 500
+    E_mc_init = 50
     # Charging rate (W)
-    mu = 20
+    mu = 0.04
 
     # transmission parameter
     lamb = 36.0 
@@ -130,17 +151,18 @@ class WrsnParameters(Config):
     e_da = 5 * 1e-12
 
     # Num of bits
-    k_bit = 8000000
+    k_bit = 20000
 
     # hop constraint
     hop = 12
 
 class DrlParameters(Config):
     __dictpath__ = 'dp'
-    # input sizes (do not tune it)
+    # input sizes (do not change them)
     MC_STATIC_SIZE = 4
     MC_DYNAMIC_SIZE = 3
     MC_INPUT_SIZE = MC_STATIC_SIZE + MC_DYNAMIC_SIZE
+    DEPOT_INPUT_SIZE = 3
     SN_STATIC_SIZE = 4
     SN_DYNAMIC_SIZE = 2
     SN_INPUT_SIZE = SN_STATIC_SIZE + SN_DYNAMIC_SIZE

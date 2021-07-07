@@ -5,15 +5,10 @@ import os
 import torch
 import pickle
 
-from utils.logger import logger
-
 device_str = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = torch.device(device_str)
 
 Point = namedtuple('Point', ['x', 'y', 'z'], defaults=[0, 0, 0])
-
-logger.info("Running on device: %s", device_str)
-
 
 def dist(p1: Point, p2: Point):
     return math.dist(list(p1), list(p2))

@@ -58,7 +58,7 @@ class Attention(nn.Module):
         return attns
 
 class Pointer(nn.Module):
-    def __init__(self, hidden_size):
+    def __init__(self, hidden_size, dropout=0.):
         super(Pointer, self).__init__()
 
         self.v = nn.Parameter(torch.zeros((1, 1, hidden_size),
@@ -67,6 +67,7 @@ class Pointer(nn.Module):
         self.encoder_attn = Attention(hidden_size)
         self.fc1 = nn.Linear(hidden_size * 2, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, mc_hidden, sn_hidden):
         """forward.
@@ -84,8 +85,8 @@ class Pointer(nn.Module):
         # (batch_size, hidden_size * 2)
         input = torch.cat((mc_hidden, context.squeeze(1)), dim=1)
 
-        output = F.relu(self.fc1(input))
-        output = F.relu(self.fc2(output)) # (batch_size, hidden_size)
+        output = self.dropout(F.relu(self.fc1(input)))
+        output = self.dropout(F.relu(self.fc2(output))) # (batch_size, hidden_size)
 
         output = output.unsqueeze(2).expand_as(sn_hidden)
 
@@ -95,20 +96,21 @@ class Pointer(nn.Module):
         return probs
 
 class MCActor(nn.Module):
-    def __init__(self, mc_input_size, sn_input_size,
+    def __init__(self, mc_input_size, depot_input_size, sn_input_size,
                  hidden_size, dropout=0.):
         super(MCActor, self).__init__()
 
         # Define the encoder & decoder models
         self.mc_encoder = Encoder(mc_input_size, hidden_size)
+        self.depot_encoder = Encoder(depot_input_size, hidden_size)
         self.sn_encoder = Encoder(sn_input_size, hidden_size)
-        self.pointer = Pointer(hidden_size)
+        self.pointer = Pointer(hidden_size, dropout)
 
         for p in self.parameters():
             if len(p.shape) > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, mc_input, sn_input):
+    def forward(self, mc_input, depot_input, sn_input):
         """forward.
 
         Parameters
@@ -119,16 +121,19 @@ class MCActor(nn.Module):
             sn_input
         """
         mc_hidden = self.mc_encoder(mc_input)
+        depot_hidden = self.depot_encoder(depot_input)
         sn_hidden = self.sn_encoder(sn_input)
 
+        sn_hidden = torch.cat((depot_hidden.unsqueeze(1), sn_hidden), dim=1)
         probs = self.pointer(mc_hidden, sn_hidden.permute(0, 2, 1))
         return probs
 
 class Critic(nn.Module):
-    def __init__(self, mc_input_size, sn_input_size, hidden_size):
+    def __init__(self, mc_input_size, depot_input_size, sn_input_size, hidden_size):
         super(Critic, self).__init__()
 
         self.mc_encoder = Encoder(mc_input_size, hidden_size)
+        self.depot_encoder = Encoder(depot_input_size, hidden_size)
         self.sn_encoder = Encoder(sn_input_size, hidden_size)
 
         self.fc1 = nn.Linear(hidden_size * 2, hidden_size)
@@ -139,10 +144,12 @@ class Critic(nn.Module):
             if len(p.shape) > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, mc_input, sn_input):
+    def forward(self, mc_input, depot_input, sn_input):
         mc_hidden = self.mc_encoder(mc_input)
+        depot_hidden = self.depot_encoder(depot_input)
         sn_hidden = self.sn_encoder(sn_input)
 
+        sn_hidden = torch.cat((depot_hidden.unsqueeze(1), sn_hidden), dim=1)
         hidden = mc_hidden.unsqueeze(1).expand_as(sn_hidden)
         hidden = torch.cat((hidden, sn_hidden), 2)
 

@@ -1,8 +1,8 @@
 import math
 
-from utils.parameters import WrsnParameters as wp
+from utils.parameters import WrsnParameters
 
-def transmission_energy(k, d):
+def transmission_energy(k, d, wp=WrsnParameters):
     """transmission_energy.
 
     Parameters
@@ -18,7 +18,7 @@ def transmission_energy(k, d):
     else:
         return k * wp.e_elec + k * wp.e_mp * (d ** 4)
 
-def energy_consumption(x, y, d):
+def energy_consumption(x, y, d, wp=WrsnParameters):
     """energy_consumption.
 
     Parameters
